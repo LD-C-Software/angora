@@ -1,1 +1,1 @@
-console.log("Slack Bot ready");
+console.log('Slack Bot ready')

@@ -6,10 +6,13 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "lint": "eslint ."
   },
   "dependencies": {},
   "devDependencies": {
-    "typescript": "^5.3.3"
+    "@crm/config": "workspace:*",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
   }
 }

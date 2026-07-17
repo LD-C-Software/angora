@@ -1,1 +1,1 @@
-console.log("Email Bot ready");
+console.log('Email Bot ready')

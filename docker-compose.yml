@@ -2,20 +2,20 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     container_name: crm-postgres
     environment:
       POSTGRES_DB: crm
       POSTGRES_USER: crm
       POSTGRES_PASSWORD: crm
     volumes:
-      - crm-postgres-data:/var/lib/postgresql/data
+      - crm-postgres-data:/var/lib/postgresql
     ports:
-      - "5432:5432"
+      - '5432:5432'
     networks:
       - crm-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U crm -d crm"]
+      test: ['CMD-SHELL', 'pg_isready -U crm -d crm']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -33,11 +33,11 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - '8080:8080'
     networks:
       - crm-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:8080/api/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -45,20 +45,20 @@ services:
 
   frontend:
     build:
-      context: ./apps/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/frontend/Dockerfile
     container_name: crm-frontend
     depends_on:
       - backend
     ports:
-      - "3000:3000"
+      - '3000:3000'
     networks:
       - crm-network
 
   slack-bot:
     build:
-      context: ./apps/bots/slack
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/bots/slack/Dockerfile
     container_name: crm-slack-bot
     depends_on:
       - backend
@@ -67,8 +67,8 @@ services:
 
   discord-bot:
     build:
-      context: ./apps/bots/discord
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/bots/discord/Dockerfile
     container_name: crm-discord-bot
     depends_on:
       - backend
@@ -77,8 +77,8 @@ services:
 
   email-bot:
     build:
-      context: ./apps/bots/email
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/bots/email/Dockerfile
     container_name: crm-email-bot
     depends_on:
       - backend

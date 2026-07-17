@@ -1,0 +1,16 @@
+{
+  "name": "crm-support",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.13.1",
+  "scripts": {
+    "check:dep-age": "node scripts/check-dependency-age.mjs",
+    "lint": "pnpm -r run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@crm/config": "workspace:*",
+    "prettier": "catalog:"
+  }
+}

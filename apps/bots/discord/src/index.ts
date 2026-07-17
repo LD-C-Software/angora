@@ -1,1 +1,1 @@
-console.log("Discord Bot ready");
+console.log('Discord Bot ready')

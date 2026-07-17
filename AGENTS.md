@@ -6,9 +6,9 @@ This document provides instructions and constraints for AI agents (like Mistral 
 
 This is a **self-hosted CRM/Support System** starter monorepo with the following architecture:
 
-- **Backend**: KTor 3.5.1 + Kotlin 2.4.10 + Exposed ORM + PostgreSQL
-- **Frontend**: React 18+ + TypeScript + Vite
-- **Bots**: Node.js 24+ + TypeScript (Slack, Discord, Email)
+- **Backend**: KTor 3.5.1 + Kotlin 2.4.0 + Exposed ORM 1.3.1 + PostgreSQL 18
+- **Frontend**: React 19 + TypeScript 7 + Vite 8
+- **Bots**: Node.js 24+ + TypeScript 7 (Slack, Discord, Email)
 - **Containerization**: Docker + Docker Compose
 
 All components run in Docker containers and the entire stack starts with:
@@ -35,16 +35,16 @@ docker-compose up --build
 ### File Modification Rules
 
 #### Backend (`apps/backend/`)
-- **Language**: Kotlin 2.4.10
+- **Language**: Kotlin 2.4.0
 - **Framework**: KTor 3.5.1
-- **ORM**: Exposed 1.3.1
+- **ORM**: Exposed 1.3.1 — imports are `org.jetbrains.exposed.v1.jdbc.*`, **not** the pre-1.0 `org.jetbrains.exposed.sql.*` paths shown in older tutorials/blog posts
 - **Build**: Maven with JDK 25
 - **Dependencies**: Use `-jvm` suffix for all KTor artifacts
 
 **Allowed Changes**:
 - `src/Application.kt` - KTor routes and business logic
 - `pom.xml` - Dependencies and plugins
-- `Dockerfile` - Container configuration
+- `Dockerfile`, `.dockerignore` - Container configuration
 
 **Forbidden Changes**:
 - Don't remove health endpoint (`/api/health`)
@@ -52,13 +52,18 @@ docker-compose up --build
 - Don't remove Exposed ORM unless explicitly requested
 
 #### Frontend (`apps/frontend/`)
-- **Framework**: React 18+ + TypeScript + Vite
+- **Framework**: React 19 + TypeScript 7 + Vite 8
 - **Build**: pnpm + Node.js 24
 - **Serve**: nginx:alpine on port 3000
+- **Vite root is `src/`**: `vite.config.ts` sets `root: 'src'` and `build.outDir: '../dist'` because `index.html` lives in `src/`, not the project root. Its script tag references `/main.tsx` (relative to that root), not `/src/main.tsx`. Don't change the root without updating both.
+- **TypeScript 7 dropped `baseUrl`**: path aliases use `"paths": {"@/*": ["./src/*"]}` with no `baseUrl`.
+- **`tsconfig.json`/`tsconfig.node.json`, `eslint.config.mjs`, and `vite.config.ts` all pull from `@crm/config`** (see Shared Tooling Configs below) — don't inline rules/compiler options that duplicate what the shared base already sets.
+- **`Dockerfile` builds from the repo root**, not `apps/frontend/` — see Shared Tooling Configs before editing it.
 
 **Allowed Changes**:
 - `src/main.tsx` - React components
-- `vite.config.ts` - Vite configuration
+- `vite.config.ts` - Vite configuration (the app-specific object merged on top of the shared base)
+- `eslint.config.mjs` - Only if adding app-specific overrides on top of `@crm/config/eslint/react.mjs`; put reusable rules in the shared package instead
 - `package.json` - Dependencies
 - `Dockerfile` - Container configuration
 
@@ -68,8 +73,11 @@ docker-compose up --build
 - Don't remove nginx.conf
 
 #### Bots (`apps/bots/*/`)
-- **Runtime**: Node.js 24+ + TypeScript
+- **Runtime**: Node.js 24+ + TypeScript 7
 - **Build**: pnpm + tsc
+- **Module resolution**: `moduleResolution: "nodenext"` (TypeScript 7 removed the old `"node"`/node10 resolution mode); keep `module` set to `"nodenext"` too since they must match.
+- **`tsconfig.json` and `eslint.config.mjs` pull from `@crm/config`** — see Shared Tooling Configs below.
+- **`Dockerfile` builds from the repo root**, not the bot's own directory.
 
 **Allowed Changes**:
 - `src/index.ts` - Bot logic
@@ -80,10 +88,27 @@ docker-compose up --build
 - Don't change start command (`node dist/index.js`)
 - Don't remove TypeScript type: module
 
+#### Shared config (`packages/config/`, package name `@crm/config`)
+- Single source of truth for TypeScript, ESLint, Prettier, and Vite configuration, consumed by `apps/frontend` and all three bots via `"@crm/config": "workspace:*"`.
+- **If a rule/compiler-option/format-setting should apply to more than one package, it belongs here — not copy-pasted into each app.**
+- `eslint-plugin-react-hooks` and `eslint-plugin-react-refresh`'s exact export shapes are version-sensitive and have changed between releases (e.g., `reactRefresh.configs.vite` is a plain object in the pinned version, not a factory function — don't assume the shape from a README or an older version; check `node --input-type=module -e "import p from '<pkg>'; console.log(p.configs)"` from inside `packages/config` after any version bump).
+- Prettier is intentionally **not** per-package: `prettier.config.mjs` at the repo root re-exports `@crm/config/prettier/index.mjs`, and that's the only Prettier config in the repo.
+
+**Allowed Changes**:
+- Anything under `typescript/`, `eslint/`, `prettier/`, `vite/`
+- `package.json` - Dependencies (keep entries pointed at `catalog:` where the version is also used elsewhere)
+
+**Forbidden Changes**:
+- Don't add `exports` restrictions to `package.json` that would break the deep imports (`@crm/config/eslint/react.mjs`, etc.) apps already use
+
 #### Infrastructure Files
-- **`docker-compose.yml`**: Service orchestration
-- **`pnpm-workspace.yaml`**: Workspace configuration
-- **`.gitignore`**: Standard ignore patterns
+- **`docker-compose.yml`**: Service orchestration. `frontend`, `slack-bot`, `discord-bot`, `email-bot` build with `context: .` (repo root) + an explicit `dockerfile:` path — required so their builds can see `packages/config`. Only `backend` still uses `context: ./apps/backend`. Don't revert the four to a per-app context; that would break `@crm/config` resolution inside the image.
+- **`pnpm-workspace.yaml`**: Workspace packages (including `packages/config`), the shared version `catalog:`, and the `minimumReleaseAge` supply-chain policy — see Dependency Pinning & Guardrails below before touching this file
+- **`package.json`** (repo root): `packageManager` pin, the `check:dep-age`/`lint`/`format`/`format:check` scripts, and `prettier` + `@crm/config` as devDependencies (needed for `prettier.config.mjs` to resolve); not a workspace package itself
+- **`prettier.config.mjs`** / **`.prettierignore`** (repo root): The one Prettier config for the whole repo — don't add per-package Prettier configs
+- **`.dockerignore`** (repo root): Used by the four root-context builds above; `apps/backend/.dockerignore` is separate and still used by backend's own context
+- **`scripts/check-dependency-age.mjs`**: Maven + npm dependency-age audit; keep it in sync if `pom.xml`'s structure or the catalog format changes. It reads every `package.json` in the workspace (root, `packages/config`, `apps/frontend`, each bot) — add new manifests to its `manifests` list if you add a new workspace package.
+- **`.gitignore`**: Standard ignore patterns. Do not add a bare `Dockerfile` entry — that previously matched every file named `Dockerfile` in the repo and silently kept all five of them out of git history.
 - **`README.md`**: Documentation only
 
 ### Environment Variables
@@ -108,7 +133,7 @@ Do NOT use `localhost` or `127.0.0.1` for inter-service communication.
 The backend uses Exposed ORM to connect to PostgreSQL:
 
 ```kotlin
-import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.v1.jdbc.Database
 
 val database = Database.connect(
     url = System.getenv("DB_URL") ?: "jdbc:postgresql://postgres:5432/crm",
@@ -146,6 +171,15 @@ curl http://localhost:3000
 docker-compose logs -f backend
 ```
 
+For frontend/bot changes, also run before considering the task done:
+
+```bash
+pnpm install                 # from repo root; re-verifies the age guardrail too
+pnpm --filter <pkg> run lint
+pnpm --filter <pkg> exec tsc --noEmit   # frontend: also run against tsconfig.node.json
+pnpm run format:check        # from repo root; `pnpm run format` to fix
+```
+
 ### Success Criteria
 
 A task is complete when:
@@ -158,15 +192,50 @@ A task is complete when:
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| Kotlin | 2.4.10 | Required for KTor 3.5.1 |
+| Kotlin | 2.4.0 | Newest version that clears the 7-day age guardrail (2.4.10 is newer but too recent); required for KTor 3.5.1 + Exposed 1.3.1 |
 | KTor | 3.5.1 | Latest stable |
-| Exposed | 1.3.1 | Latest stable |
-| PostgreSQL JDBC | 42.7.3 | Compatible with Kotlin 2.4 |
-| Node.js | 24.x | For frontend and bots |
-| React | 18.x | Latest stable |
-| TypeScript | 5.x | For frontend and bots |
-| Vite | 5.x | For frontend |
+| Exposed | 1.3.1 | Latest stable; post-1.0 `org.jetbrains.exposed.v1.*` package layout |
+| PostgreSQL JDBC | 42.7.13 | Latest stable |
+| PostgreSQL (server) | 18.x | `docker-compose.yml` uses `postgres:18-alpine`; volume mounts at `/var/lib/postgresql`, not `/var/lib/postgresql/data` |
+| Node.js | 24.x | Active LTS; used for frontend and bots |
+| React | 19.x | Latest stable |
+| TypeScript | 7.x | Latest stable (Go-based compiler); dropped `baseUrl` and `moduleResolution: "node"` |
+| Vite | 8.x | Latest stable, for frontend |
+| ESLint | 10.x | Flat config (`eslint.config.mjs`) only, no legacy `.eslintrc` |
+| typescript-eslint | 8.63.0 | Pinned below latest — its `typescript` peer range caps under TS 7, so don't bump past what's tested to still work with the pinned TypeScript |
+| Prettier | 3.x | One config for the whole repo, see Shared Tooling Configs |
 | Docker | Latest | Container runtime |
+
+## Dependency Pinning & Guardrails
+
+1. **Always pin exact versions.** No `^`/`~`/range prefixes in any `package.json`. No version ranges or `LATEST`/`RELEASE` in `pom.xml`. If you add a dependency, write the specific version you resolved, not a range.
+
+2. **Shared JS/TS versions live in the pnpm catalog, not in each `package.json`.** `pnpm-workspace.yaml` has a `catalog:` block; `typescript` (used by the frontend and all three bots) is defined there once and referenced as `"typescript": "catalog:"`. If you add a new dependency that's used by more than one package in `apps/`, add it to the catalog instead of pinning the same version four times. The backend is a single Maven module, so this doesn't apply there — its versions live directly in `apps/backend/pom.xml`.
+
+3. **A 7-day minimum release age is enforced — don't work around it.** `pnpm-workspace.yaml` sets `minimumReleaseAge: 10080` (minutes) with `minimumReleaseAgeStrict: true`, so `pnpm install`/`pnpm add` will hard-fail if a resolved version (direct or transitive) was published in the last 7 days. **This is expected behavior, not a bug**: if you hit `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`, pin the dependency to the next older version instead of lowering/removing `minimumReleaseAge`. Never edit `minimumReleaseAge`, `minimumReleaseAgeStrict`, or add entries to `minimumReleaseAgeExclude` to make a failing install pass, unless the user explicitly asks you to change the policy itself.
+
+4. **Maven has no equivalent automatic gate**, so after editing `apps/backend/pom.xml` (adding or bumping any dependency or plugin), run the audit script before considering the task done:
+
+   ```bash
+   node scripts/check-dependency-age.mjs
+   # or: pnpm run check:dep-age
+   ```
+
+   It also cross-checks the npm side as a second line of defense. If it reports a violation, pick an older version of that artifact (check the real publish date via `curl -sI https://repo1.maven.org/maven2/<group-path>/<artifact>/<version>/<artifact>-<version>.pom | grep -i last-modified` — Maven Central's Solr search index lags/misses recent releases, so don't trust `search.maven.org` for this).
+
+## Shared Tooling Configs
+
+TypeScript, ESLint, Prettier, and Vite configuration for `apps/frontend` and the three bots all come from `packages/config` (`@crm/config`), a private workspace package — not from `apps/backend`, which has no JS/TS tooling at all.
+
+1. **Don't inline a rule/option in an app when the shared base already covers it, or could reasonably cover it for more than one package.** Add it to `packages/config` instead: `typescript/base.json` (or `react-app.json`/`node.json`), `eslint/base.mjs` (or `react.mjs`/`node.mjs`), `prettier/index.mjs`, or `vite/base.mjs`. Each app's own `tsconfig.json`/`eslint.config.mjs`/`vite.config.ts` should only contain what's genuinely specific to that app (ports, proxy targets, `outDir`, etc.).
+
+2. **Prettier has exactly one config in the whole repo**: `prettier.config.mjs` at the root, which re-exports `@crm/config/prettier/index.mjs`. Never add a per-package Prettier config or a second `prettier.config.*` file.
+
+3. **A new app that needs any of these tools must add `"@crm/config": "workspace:*"` as a devDependency**, plus its own direct `eslint`/`typescript`/`vite` devDependency (pnpm's strict `node_modules` means depending on `@crm/config` alone does not put those binaries on that package's `PATH` — only the config *content* is shared, the CLI tools are not).
+
+4. **The four JS/TS Dockerfiles (frontend + 3 bots) build from the repo root, not their own directory**, specifically so `tsc`/`vite build` running inside the image can resolve `@crm/config`. If you add a new Vite- or tsc-based service, its `docker-compose.yml` entry needs `context: .` + an explicit `dockerfile:` path (not `context: ./apps/<service>`), and its Dockerfile needs to `COPY` `pnpm-workspace.yaml`, the root `package.json`/`pnpm-lock.yaml`, `packages/config`, and its own `apps/<service>` directory before `pnpm install --frozen-lockfile`. Copy `apps/frontend` and `apps/bots` too even in a bot's Dockerfile — `pnpm install --frozen-lockfile` expects the on-disk package set to match every importer in the lockfile, not just the one you're building.
+
+5. **Before assuming an ESLint plugin's config export shape** (e.g., whether `plugin.configs.foo` is a plain object or a factory function you need to call), check it empirically against the actually-installed version rather than trusting a README or a different version's source — this has already changed once between what was documented and what's on the registry for a package pinned here. From `packages/config`: `node --input-type=module -e "import p from '<pkg>'; console.log(p.configs)"`.
 
 ## Common Tasks
 
@@ -181,18 +250,22 @@ A task is complete when:
 
 1. Create directory: `apps/bots/new-bot/`
 2. Add `src/index.ts` with bot logic
-3. Add `package.json` with dependencies
-4. Add `Dockerfile` for containerization
-5. Add service to `docker-compose.yml`
-6. Update `pnpm-workspace.yaml`
+3. Add `package.json` — `"typescript": "catalog:"`, `"eslint": "catalog:"`, `"@crm/config": "workspace:*"` as devDependencies, plus `build`/`start`/`lint` scripts (copy an existing bot's `package.json` as the template)
+4. Add `tsconfig.json` that extends `@crm/config/typescript/node.json` and `eslint.config.mjs` that re-exports `@crm/config/eslint/node.mjs` (copy an existing bot's files — they're all identical except `outDir`/`rootDir`, which don't even vary)
+5. Add `Dockerfile` for containerization — copy an existing bot's `Dockerfile` and update the two `apps/bots/<name>` path segments; it must build from the repo root context (see Shared Tooling Configs)
+6. Add service to `docker-compose.yml` with `context: .` + `dockerfile: apps/bots/new-bot/Dockerfile` (not `context: ./apps/bots/new-bot`)
+7. `pnpm-workspace.yaml`'s `apps/bots/**` glob already covers it — no change needed there unless the new bot needs its own catalog entry
+8. Add the new `package.json` path to the `manifests` list in `scripts/check-dependency-age.mjs`
 
 ### Update Dependencies
 
-1. Edit `apps/backend/pom.xml` for backend
-2. Edit `apps/frontend/package.json` for frontend
+1. Edit `apps/backend/pom.xml` for backend, or the relevant `package.json` for frontend/bots — pin the exact new version, never a range
+2. If the dependency is shared across frontend + bots, bump it once in the `catalog:` block of `pnpm-workspace.yaml` instead of each `package.json`
 3. Use `-jvm` suffix for KTor artifacts
 4. Verify versions are compatible
-5. Test with Docker build
+5. `pnpm install` — if it fails with `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`, pick an older version (see Dependency Pinning & Guardrails above), don't relax the policy
+6. For backend changes, run `node scripts/check-dependency-age.mjs` and fix any violation the same way
+7. Test with Docker build
 
 ## Troubleshooting
 
@@ -232,4 +305,4 @@ For questions about this project's agent configuration, refer to the README.md o
 
 ---
 
-*Last updated: July 17, 2026*
+*Last updated: July 18, 2026*

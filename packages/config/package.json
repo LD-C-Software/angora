@@ -1,0 +1,19 @@
+{
+  "name": "@crm/config",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared TypeScript, ESLint, Prettier, and Vite base configs for the workspace",
+  "dependencies": {
+    "@eslint/js": "catalog:",
+    "typescript-eslint": "catalog:",
+    "globals": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "eslint-plugin-react-refresh": "catalog:"
+  },
+  "devDependencies": {
+    "eslint": "catalog:",
+    "prettier": "catalog:"
+  }
+}

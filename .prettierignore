@@ -1,0 +1,6 @@
+**/node_modules
+**/dist
+**/target
+apps/backend
+pnpm-lock.yaml
+*.md

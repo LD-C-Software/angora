@@ -10,8 +10,8 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.plugins.cors.routing.*
 import kotlinx.serialization.json.Json
-import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 fun main() {
     embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
@@ -28,8 +28,8 @@ val database = Database.connect(
 fun Application.module() {
     install(CORS) {
         anyHost()
+        allowNonSimpleContentTypes = true
         allowHeader(HttpHeaders.ContentType)
-        allowCredentialContentTypes()
     }
 
     install(ContentNegotiation) {

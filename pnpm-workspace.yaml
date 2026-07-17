@@ -1,3 +1,28 @@
 packages:
   - 'apps/frontend'
   - 'apps/bots/**'
+  - 'packages/config'
+
+# Single source of truth for dependency versions shared by more than one
+# package (frontend + all three bots all compile with the same TypeScript
+# and lint/format tooling). Bump a version here once instead of editing
+# every package.json.
+catalog:
+  typescript: 7.0.2
+  eslint: 10.7.0
+  typescript-eslint: 8.63.0
+  '@eslint/js': 10.0.1
+  globals: 17.7.0
+  eslint-config-prettier: 10.1.8
+  eslint-plugin-react-hooks: 7.1.1
+  eslint-plugin-react-refresh: 0.5.3
+  prettier: 3.9.5
+
+# Supply-chain guardrail: refuse to resolve/install any package version
+# published less than 7 days (10080 minutes) ago. Applies to direct and
+# transitive dependencies, and is re-checked on every `pnpm install`
+# (not just `pnpm add`), including versions already sitting in the lockfile.
+# Explicitly setting this turns on strict mode, so pnpm errors out instead
+# of silently falling back to an older version.
+minimumReleaseAge: 10080
+minimumReleaseAgeStrict: true
