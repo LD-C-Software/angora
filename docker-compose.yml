@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: crm-postgres
+    environment:
+      POSTGRES_DB: crm
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: crm
+    volumes:
+      - crm-postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm -d crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: crm-backend
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/crm
+      DB_USER: crm
+      DB_PASSWORD: crm
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+    container_name: crm-frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    networks:
+      - crm-network
+
+  slack-bot:
+    build:
+      context: ./apps/bots/slack
+      dockerfile: Dockerfile
+    container_name: crm-slack-bot
+    depends_on:
+      - backend
+    networks:
+      - crm-network
+
+  discord-bot:
+    build:
+      context: ./apps/bots/discord
+      dockerfile: Dockerfile
+    container_name: crm-discord-bot
+    depends_on:
+      - backend
+    networks:
+      - crm-network
+
+  email-bot:
+    build:
+      context: ./apps/bots/email
+      dockerfile: Dockerfile
+    container_name: crm-email-bot
+    depends_on:
+      - backend
+    networks:
+      - crm-network
+
+volumes:
+  crm-postgres-data:
+
+networks:
+  crm-network:
+    driver: bridge
