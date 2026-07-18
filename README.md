@@ -1,5 +1,7 @@
 # CRM/Support System Monorepo
 
+[![CI](https://github.com/LD-C-Software/crm-support/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LD-C-Software/crm-support/actions/workflows/ci.yml)
+
 A self-hosted CRM/support system with a modern full-stack architecture. Every component runs in Docker containers.
 
 ## Architecture

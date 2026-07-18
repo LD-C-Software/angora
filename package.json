@@ -4,13 +4,17 @@
   "type": "module",
   "packageManager": "pnpm@11.13.1",
   "scripts": {
+    "prepare": "husky",
     "check:dep-age": "node scripts/check-dependency-age.ts",
     "lint": "pnpm -r run lint",
+    "typecheck": "pnpm --filter=\"!@crm/config\" -r exec tsc --noEmit",
+    "test": "pnpm -r run test",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@crm/config": "workspace:*",
+    "husky": "9.1.7",
     "prettier": "catalog:"
   }
 }

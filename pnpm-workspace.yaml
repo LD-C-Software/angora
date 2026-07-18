@@ -18,6 +18,7 @@ catalog:
   eslint-plugin-react-refresh: 0.5.3
   prettier: 3.9.5
   vite: 8.1.4
+  vitest: 4.1.10
 
 # Supply-chain guardrail: refuse to resolve/install any package version
 # published less than 7 days (10080 minutes) ago. Applies to direct and

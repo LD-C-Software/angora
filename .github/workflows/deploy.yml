@@ -1,0 +1,41 @@
+# Placeholder deploy workflow.
+#
+# This is intentionally inert: `workflow_dispatch` means it only runs when
+# someone manually triggers it from the Actions tab (or `gh workflow run
+# deploy.yml`) — it will never fire on a push or merge on its own.
+#
+# To activate real auto-deploy on merge to main:
+#   1. Replace the TODO steps below with real ones (push images to a
+#      registry, SSH to a host, hit a deploy webhook, etc.) once a real
+#      target exists.
+#   2. Change the trigger to:
+#        on:
+#          push:
+#            branches: [main]
+name: Deploy
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      # TODO: build the service images from their existing Dockerfiles, e.g.:
+      #   docker build -t crm-backend -f apps/backend/Dockerfile ./apps/backend
+      #   docker build -t crm-frontend -f apps/frontend/Dockerfile .
+      #   docker build -t crm-slack-bot -f apps/bots/slack/Dockerfile .
+      #   docker build -t crm-discord-bot -f apps/bots/discord/Dockerfile .
+      #   docker build -t crm-email-bot -f apps/bots/email/Dockerfile .
+      - name: Build images (TODO)
+        run: echo "TODO - build Docker images"
+
+      # TODO: push to a registry and/or deploy to the real target, e.g.:
+      #   - log in to a container registry and push each image
+      #   - SSH to the host and run `docker-compose --env-file .env.production up -d --build`
+      #   - or trigger a webhook for a managed hosting provider
+      - name: Deploy (TODO)
+        run: echo "TODO - push images and deploy to the real target"
