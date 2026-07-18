@@ -33,6 +33,8 @@ mvn test
 
 There are no tests yet (`src/test` doesn't exist) — this currently passes vacuously ("No tests to run"). See the root README's [Limitations](../../README.md#limitations) section.
 
+To add the first one: create `src/test/kotlin/...`, add a test dependency to `pom.xml` (JUnit 5 or Kotest are the usual choices for Kotlin), and `mvn test` will pick it up automatically via the default `maven-surefire-plugin` binding — no extra plugin configuration needed. Run `node scripts/check-dependency-age.ts` after adding the dependency (see the repo-wide [Dependency Pinning & Guardrails](../../AGENTS.md#dependency-pinning--guardrails)).
+
 ## API Endpoints
 
 | Method | Endpoint       | Description                          | Response                                    |
@@ -70,4 +72,9 @@ In Docker Compose these are set from `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PAS
 
 **Maven build fails**: check the JDK version in `Dockerfile` matches the Kotlin version; verify dependency versions are compatible; check Maven Central for latest versions.
 
-**Database connection fails**: verify PostgreSQL is running (`docker ps`), check `docker-compose logs postgres`, and make sure `DB_URL` uses `postgres` as the hostname (not `localhost`) when running inside Docker.
+**Backend won't start**:
+
+- Check PostgreSQL is healthy: `docker-compose logs postgres`
+- Verify the database connection: `docker-compose logs backend`
+- Test manually: `curl http://localhost:8080/api/health`
+- Make sure `DB_URL` uses `postgres` as the hostname (not `localhost`) when running inside Docker

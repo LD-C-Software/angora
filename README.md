@@ -148,7 +148,24 @@ Every dependency in this repo is pinned to an exact version — no `^`/`~` range
 
 ### Sharing versions across packages (pnpm catalog)
 
-The workspace (`apps/frontend` + the three bots + `packages/config`) uses a [pnpm catalog](https://pnpm.io/catalogs) for dependencies used by more than one package — `typescript`, `eslint`, `vitest`, and the ESLint/Prettier plugins they're built on, all defined once in `pnpm-workspace.yaml`. Each `package.json` references an entry as `"typescript": "catalog:"` instead of repeating the version; to bump one everywhere, edit the single line in `pnpm-workspace.yaml` and run `pnpm install`. The backend is a single Maven module, so there's no equivalent "share across modules" story on that side — its versions already live in one place, `apps/backend/pom.xml`.
+The workspace (`apps/frontend` + the three bots + `packages/config`) uses a [pnpm catalog](https://pnpm.io/catalogs) for dependencies used by more than one package, all defined once in `pnpm-workspace.yaml`:
+
+```yaml
+catalog:
+  typescript: 7.0.2
+  eslint: 10.7.0
+  typescript-eslint: 8.63.0
+  '@eslint/js': 10.0.1
+  globals: 17.7.0
+  eslint-config-prettier: 10.1.8
+  eslint-plugin-react-hooks: 7.1.1
+  eslint-plugin-react-refresh: 0.5.3
+  prettier: 3.9.5
+  vite: 8.1.4
+  vitest: 4.1.10
+```
+
+Each `package.json` references an entry as `"typescript": "catalog:"` instead of repeating the version. To bump one everywhere, edit the single line in `pnpm-workspace.yaml` and run `pnpm install`. The backend is a single Maven module, so there's no equivalent "share across modules" story on that side — its versions already live in one place, `apps/backend/pom.xml`.
 
 ### Sharing tool configs
 

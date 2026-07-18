@@ -42,5 +42,5 @@ If it reports a violation, pick an older version of that artifact — check the 
 
 ## Troubleshooting
 
-- **Maven build fails**: check the JDK version in `Dockerfile` matches the Kotlin version; verify dependency versions are compatible.
+- **Maven build fails**: check the JDK version in `Dockerfile` matches the Kotlin version; verify dependency versions are compatible; check Maven Central for latest versions.
 - **Database connection fails**: verify PostgreSQL is running (`docker ps`), check `docker-compose logs postgres`, ensure `DB_URL` uses `postgres` as hostname (not `localhost`) inside Docker.

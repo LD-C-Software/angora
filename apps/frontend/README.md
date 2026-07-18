@@ -36,5 +36,15 @@ Run these from `apps/frontend/`, or from the repo root as `pnpm --filter crm-fro
 ## Notes
 
 - **Vite root is `src/`**: `vite.config.ts` sets `root: 'src'` and `build.outDir: '../dist'` because `index.html` lives in `src/`, not the project root. Its script tag references `/main.tsx` (relative to that root), not `/src/main.tsx`.
+- **Two `tsconfig` files, two purposes**: `tsconfig.json` extends `@crm/config/typescript/react-app.json` and covers `src/`; `tsconfig.node.json` extends `@crm/config/typescript/base.json` (not `react-app.json`) and covers `vite.config.ts` itself, which runs under Node, not the browser. That's why there are two separate typecheck commands above instead of one.
 - **Path aliases**: TypeScript 7 dropped `baseUrl`, so `"paths": {"@/*": ["./src/*"]}` is set with no `baseUrl`.
 - **API proxy**: `/api` requests are proxied to the backend — via `vite.config.ts` (`http://localhost:8080`) in the local dev server, via `nginx.conf` (`http://backend:8080`) in the production container.
+
+## Troubleshooting
+
+**Frontend shows errors / can't reach the backend**:
+
+- Ensure the backend is running: `docker ps`
+- Check the API proxy — the frontend calls `/api`, which proxies to the backend (see above)
+- Verify backend logs: `docker-compose logs backend`
+- Test the backend directly: `curl http://localhost:8080/api/health`

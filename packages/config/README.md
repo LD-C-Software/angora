@@ -13,6 +13,15 @@ Shared TypeScript, ESLint, Prettier, and Vite configuration for the JS/TS side o
 
 Only `apps/frontend` uses Vite today, but the base still lives here so any future Vite-based service starts from the same defaults instead of copy-pasting `apps/frontend/vite.config.ts`.
 
+What's distinctive in each file:
+
+- `typescript/base.json` — strictness options common to every package; `react-app.json` and `node.json` both extend it
+- `typescript/react-app.json` — + browser/bundler/JSX settings (used by `apps/frontend`)
+- `typescript/node.json` — + `nodenext` module settings (used by `apps/frontend`'s `tsconfig.node.json` and all three bots)
+- `eslint/base.mjs` — `@eslint/js` + `typescript-eslint` recommended rules
+- `eslint/react.mjs` — `base` + `eslint-plugin-react-hooks`/`eslint-plugin-react-refresh` + `eslint-config-prettier` (used by `apps/frontend`)
+- `eslint/node.mjs` — `base` + Node globals + `eslint-config-prettier` (used by all three bots)
+
 ## Why `eslint/*.mjs` isn't TypeScript like the rest
 
 Every other config here is `.ts`, loaded natively (Node runs `.ts` directly; Vite and Prettier load their own `.ts` configs the same way) — no build step, no `ts-node`. ESLint's flat config loader *can* load a `.ts` file too, but only via an extra `jiti` dependency, and pulling that thread surfaced a real, unresolved incompatibility: `typescript-eslint` (every 8.x version, checked through 8.64.0, the newest available) crashes immediately on import against this repo's pinned TypeScript 7 — its code does `ts.Extension.Cjs` at module-load time, and TypeScript 7's Go-rewritten npm package doesn't export `Extension` the same way anymore. This isn't a lint-time-only failure or a peer-range nitpick; it's an unconditional crash the moment `typescript-eslint` is imported.

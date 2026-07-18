@@ -33,3 +33,8 @@ Run these from `apps/bots/slack/`, or from the repo root as `pnpm --filter crm-s
 ## Communicating with the backend
 
 Inside Docker, use the service name as hostname: `http://backend:8080/...` (not `localhost`).
+
+## Notes
+
+- `package.json` declares `"type": "module"` — don't remove it.
+- Not running / not doing anything visible: check `docker-compose logs slack-bot`.

@@ -5,7 +5,7 @@ Scoped to `apps/bots/*/` (slack, discord, email). All three are identical in str
 - **Runtime**: Node.js 24+ + TypeScript 7
 - **Build**: pnpm + `tsc`
 - **Module resolution**: `moduleResolution: "nodenext"` (TypeScript 7 removed the old `"node"`/node10 resolution mode); keep `module` set to `"nodenext"` too since they must match.
-- **`tsconfig.json` and `eslint.config.mjs` pull from `@crm/config`** — see `packages/config/AGENTS.md`.
+- **`tsconfig.json` extends `@crm/config/typescript/node.json`; `eslint.config.mjs` re-exports `@crm/config/eslint/node.mjs`** — see `packages/config/AGENTS.md`.
 - **`Dockerfile` builds from the repo root**, not the bot's own directory.
 - **`tsconfig.json` excludes `src/**/*.test.ts`** from the compiled `dist/` output — the `build`/`start` scripts should never ship the placeholder Vitest test.
 
