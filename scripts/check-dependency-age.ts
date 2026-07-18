@@ -4,7 +4,7 @@
 // of defense. Fails (exit 1) if any pinned dependency or plugin version was
 // published more recently than MIN_AGE_DAYS (default 7).
 //
-// Usage: node scripts/check-dependency-age.mjs [--min-age-days=7]
+// Usage: node scripts/check-dependency-age.ts [--min-age-days=7]
 
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -18,25 +18,38 @@ const MIN_AGE_DAYS = Number(
 )
 const MIN_AGE_MS = MIN_AGE_DAYS * 24 * 60 * 60 * 1000
 
-/** @typedef {{ ecosystem: string, source: string, name: string, version: string }} Dep */
+interface Dep {
+  ecosystem: 'maven' | 'npm'
+  source: string
+  name: string
+  version: string
+}
+
+interface Violation extends Dep {
+  publishedAt: Date
+  ageDays: string
+}
+
+interface Unverifiable extends Dep {
+  error?: string
+}
 
 // ---------- Maven (pom.xml) ----------
 
-async function collectMavenDeps() {
+async function collectMavenDeps(): Promise<Dep[]> {
   const pomPath = path.join(ROOT, 'apps/backend/pom.xml')
   const xml = await readFile(pomPath, 'utf8')
 
-  const properties = {}
+  const properties: Record<string, string> = {}
   const propsBlock =
     xml.match(/<properties>([\s\S]*?)<\/properties>/)?.[1] ?? ''
   for (const m of propsBlock.matchAll(/<([\w.-]+)>([^<]*)<\/\1>/g)) {
     properties[m[1]] = m[2]
   }
-  const resolve = (v) =>
+  const resolve = (v: string) =>
     v.replace(/\$\{([\w.-]+)\}/g, (_, key) => properties[key] ?? '')
 
-  /** @type {Dep[]} */
-  const deps = []
+  const deps: Dep[] = []
   // Matches both <dependency>...</dependency> and <plugin>...</plugin> blocks.
   for (const block of xml.matchAll(/<(dependency|plugin)>([\s\S]*?)<\/\1>/g)) {
     const body = block[2]
@@ -55,7 +68,10 @@ async function collectMavenDeps() {
   return deps
 }
 
-async function mavenPublishDate(name, version) {
+async function mavenPublishDate(
+  name: string,
+  version: string,
+): Promise<Date | null> {
   // search.maven.org's Solr index lags/misses recent releases; the raw
   // repository's Last-Modified header on the POM is the ground truth for
   // when an artifact was actually published.
@@ -70,10 +86,10 @@ async function mavenPublishDate(name, version) {
 
 // ---------- npm / pnpm (package.json + catalog) ----------
 
-async function readCatalog() {
+async function readCatalog(): Promise<Record<string, string>> {
   const yaml = await readFile(path.join(ROOT, 'pnpm-workspace.yaml'), 'utf8')
   const block = yaml.match(/^catalog:\n((?:[ \t]+.+\n?)*)/m)?.[1] ?? ''
-  const catalog = {}
+  const catalog: Record<string, string> = {}
   for (const line of block.split('\n')) {
     const m = line.match(/^\s+([\w@/.-]+):\s*(.+)$/)
     if (m) catalog[m[1]] = m[2].trim()
@@ -81,7 +97,7 @@ async function readCatalog() {
   return catalog
 }
 
-async function collectNpmDeps() {
+async function collectNpmDeps(): Promise<Dep[]> {
   const catalog = await readCatalog()
   // Every package.json in the pnpm workspace, plus the root manifest (which
   // isn't a workspace "package" but still gets installed and can carry its
@@ -95,11 +111,13 @@ async function collectNpmDeps() {
     'apps/bots/email/package.json',
   ]
 
-  /** @type {Map<string, Dep>} */
-  const deps = new Map()
+  const deps = new Map<string, Dep>()
   for (const rel of manifests) {
-    const pkg = JSON.parse(await readFile(path.join(ROOT, rel), 'utf8'))
-    for (const group of ['dependencies', 'devDependencies']) {
+    const pkg = JSON.parse(await readFile(path.join(ROOT, rel), 'utf8')) as {
+      dependencies?: Record<string, string>
+      devDependencies?: Record<string, string>
+    }
+    for (const group of ['dependencies', 'devDependencies'] as const) {
       for (const [name, spec] of Object.entries(pkg[group] ?? {})) {
         if (spec.startsWith('workspace:')) continue
         const version = spec.startsWith('catalog:') ? catalog[name] : spec
@@ -116,11 +134,13 @@ async function collectNpmDeps() {
   return [...deps.values()]
 }
 
-async function npmPublishDate(name) {
+async function npmPublishDate(
+  name: string,
+): Promise<{ time?: Record<string, string> }> {
   const encoded = name.startsWith('@') ? name.replace('/', '%2f') : name
   const res = await fetch(`https://registry.npmjs.org/${encoded}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
+  return res.json() as Promise<{ time?: Record<string, string> }>
 }
 
 // ---------- main ----------
@@ -133,21 +153,21 @@ async function main() {
   const all = [...mavenDeps, ...npmDeps]
   const now = Date.now()
 
-  const violations = []
-  const unverifiable = []
+  const violations: Violation[] = []
+  const unverifiable: Unverifiable[] = []
 
-  const npmTimeCache = new Map()
+  const npmTimeCache = new Map<string, ReturnType<typeof npmPublishDate>>()
 
   for (const dep of all) {
     try {
-      let publishedAt
+      let publishedAt: Date | null
       if (dep.ecosystem === 'maven') {
         publishedAt = await mavenPublishDate(dep.name, dep.version)
       } else {
         if (!npmTimeCache.has(dep.name)) {
           npmTimeCache.set(dep.name, npmPublishDate(dep.name))
         }
-        const doc = await npmTimeCache.get(dep.name)
+        const doc = await npmTimeCache.get(dep.name)!
         const iso = doc.time?.[dep.version]
         publishedAt = iso ? new Date(iso) : null
       }
@@ -166,7 +186,7 @@ async function main() {
         })
       }
     } catch (err) {
-      unverifiable.push({ ...dep, error: err.message })
+      unverifiable.push({ ...dep, error: (err as Error).message })
     }
   }
 

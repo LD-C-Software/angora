@@ -5,17 +5,21 @@ services:
     image: postgres:18-alpine
     container_name: crm-postgres
     environment:
-      POSTGRES_DB: crm
-      POSTGRES_USER: crm
-      POSTGRES_PASSWORD: crm
+      POSTGRES_DB: ${POSTGRES_DB:-crm}
+      POSTGRES_USER: ${POSTGRES_USER:-crm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crm}
     volumes:
       - crm-postgres-data:/var/lib/postgresql
     ports:
-      - '5432:5432'
+      - '${POSTGRES_PORT:-5432}:5432'
     networks:
       - crm-network
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U crm -d crm']
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-crm} -d ${POSTGRES_DB:-crm}',
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -26,14 +30,16 @@ services:
       dockerfile: Dockerfile
     container_name: crm-backend
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/crm
-      DB_USER: crm
-      DB_PASSWORD: crm
+      # postgres:5432 is the internal Docker network address — always fixed,
+      # regardless of what POSTGRES_PORT maps to on the host.
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-crm}
+      DB_USER: ${POSTGRES_USER:-crm}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-crm}
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - '8080:8080'
+      - '${BACKEND_PORT:-8080}:8080'
     networks:
       - crm-network
     healthcheck:
@@ -51,7 +57,7 @@ services:
     depends_on:
       - backend
     ports:
-      - '3000:3000'
+      - '${FRONTEND_PORT:-3000}:3000'
     networks:
       - crm-network
 

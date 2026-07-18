@@ -25,10 +25,11 @@ maven/
 .DS_Store
 Thumbs.db
 
-# Environment
+# Environment (but keep the .example templates)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
 
 # Logs
 *.log

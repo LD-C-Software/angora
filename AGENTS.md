@@ -57,7 +57,7 @@ docker-compose up --build
 - **Serve**: nginx:alpine on port 3000
 - **Vite root is `src/`**: `vite.config.ts` sets `root: 'src'` and `build.outDir: '../dist'` because `index.html` lives in `src/`, not the project root. Its script tag references `/main.tsx` (relative to that root), not `/src/main.tsx`. Don't change the root without updating both.
 - **TypeScript 7 dropped `baseUrl`**: path aliases use `"paths": {"@/*": ["./src/*"]}` with no `baseUrl`.
-- **`tsconfig.json`/`tsconfig.node.json`, `eslint.config.mjs`, and `vite.config.ts` all pull from `@crm/config`** (see Shared Tooling Configs below) — don't inline rules/compiler options that duplicate what the shared base already sets.
+- **`tsconfig.json`/`tsconfig.node.json`, `eslint.config.mjs`, and `vite.config.ts` all pull from `@crm/config`** (see Shared Tooling Configs below) — don't inline rules/compiler options that duplicate what the shared base already sets. `vite.config.ts` imports `@crm/config/vite/base` with **no extension** — `tsconfig.node.json` has `composite: true`, which is incompatible with the `noEmit`/`allowImportingTsExtensions` combo that an explicit `.ts` extension would need.
 - **`Dockerfile` builds from the repo root**, not `apps/frontend/` — see Shared Tooling Configs before editing it.
 
 **Allowed Changes**:
@@ -92,28 +92,38 @@ docker-compose up --build
 - Single source of truth for TypeScript, ESLint, Prettier, and Vite configuration, consumed by `apps/frontend` and all three bots via `"@crm/config": "workspace:*"`.
 - **If a rule/compiler-option/format-setting should apply to more than one package, it belongs here — not copy-pasted into each app.**
 - `eslint-plugin-react-hooks` and `eslint-plugin-react-refresh`'s exact export shapes are version-sensitive and have changed between releases (e.g., `reactRefresh.configs.vite` is a plain object in the pinned version, not a factory function — don't assume the shape from a README or an older version; check `node --input-type=module -e "import p from '<pkg>'; console.log(p.configs)"` from inside `packages/config` after any version bump).
-- Prettier is intentionally **not** per-package: `prettier.config.mjs` at the repo root re-exports `@crm/config/prettier/index.mjs`, and that's the only Prettier config in the repo.
+- Prettier is intentionally **not** per-package: `prettier.config.ts` at the repo root re-exports `@crm/config/prettier/index.ts`, and that's the only Prettier config in the repo.
+- **`typescript/`, `prettier/`, `vite/` are `.ts`/`.json`; `eslint/` is deliberately plain `.mjs` — do not convert it.** Loading a `.ts` ESLint flat config works mechanically (via an extra `jiti` devDependency), but `typescript-eslint` (every 8.x version, checked) crashes immediately on import against the pinned TypeScript 7 — its code does `ts.Extension.Cjs` at module-load time, and TypeScript 7's Go-rewritten package doesn't export `Extension` the same way anymore. This isn't a lint-time-only failure or a peer-range nitpick; it's an unconditional crash the moment `typescript-eslint` is imported. If you're tempted to convert `eslint/*.mjs` to `.ts` for consistency, don't — confirmed broken as of typescript-eslint 8.64.0 (the newest version available when this was diagnosed).
+- **This is also why `packages/config/package.json` pins `"typescript": "5.9.3"` directly instead of `"typescript": "catalog:"`** (which would resolve to the repo's TypeScript 7). pnpm's peer-dependency resolution is per-consumer: because only `packages/config` declares this older TypeScript, `typescript-eslint`'s peer resolves to 5.9.3 *only inside `packages/config`'s own dependency graph*, while `apps/frontend`/the bots' own `tsc`/`vite build` still use the real TypeScript 7 from the catalog. Don't change this pin to `catalog:` — that reintroduces the crash. If a future `typescript-eslint` release adds real TypeScript 7 support, this pin can be removed and reset to `catalog:`.
 
 **Allowed Changes**:
-- Anything under `typescript/`, `eslint/`, `prettier/`, `vite/`
-- `package.json` - Dependencies (keep entries pointed at `catalog:` where the version is also used elsewhere)
+- Anything under `typescript/`, `eslint/` (as plain `.mjs`, see above), `prettier/`, `vite/`
+- `package.json` - Dependencies (keep entries pointed at `catalog:` where the version is also used elsewhere, **except** the intentional `typescript: 5.9.3` pin above)
 
 **Forbidden Changes**:
 - Don't add `exports` restrictions to `package.json` that would break the deep imports (`@crm/config/eslint/react.mjs`, etc.) apps already use
+- Don't convert `eslint/base.mjs`, `eslint/react.mjs`, or `eslint/node.mjs` to `.ts`, and don't add `jiti` as a dependency anywhere in the repo (see above)
 
 #### Infrastructure Files
-- **`docker-compose.yml`**: Service orchestration. `frontend`, `slack-bot`, `discord-bot`, `email-bot` build with `context: .` (repo root) + an explicit `dockerfile:` path — required so their builds can see `packages/config`. Only `backend` still uses `context: ./apps/backend`. Don't revert the four to a per-app context; that would break `@crm/config` resolution inside the image.
+- **`docker-compose.yml`**: Service orchestration. `frontend`, `slack-bot`, `discord-bot`, `email-bot` build with `context: .` (repo root) + an explicit `dockerfile:` path — required so their builds can see `packages/config`. Only `backend` still uses `context: ./apps/backend`. Don't revert the four to a per-app context; that would break `@crm/config` resolution inside the image. Database credentials and host ports are `${VAR:-default}` interpolations reading from `.env` — see Environment Variables below.
 - **`pnpm-workspace.yaml`**: Workspace packages (including `packages/config`), the shared version `catalog:`, and the `minimumReleaseAge` supply-chain policy — see Dependency Pinning & Guardrails below before touching this file
-- **`package.json`** (repo root): `packageManager` pin, the `check:dep-age`/`lint`/`format`/`format:check` scripts, and `prettier` + `@crm/config` as devDependencies (needed for `prettier.config.mjs` to resolve); not a workspace package itself
-- **`prettier.config.mjs`** / **`.prettierignore`** (repo root): The one Prettier config for the whole repo — don't add per-package Prettier configs
+- **`package.json`** (repo root): `packageManager` pin, the `check:dep-age`/`lint`/`format`/`format:check` scripts, and `prettier` + `@crm/config` as devDependencies (needed for `prettier.config.ts` to resolve); not a workspace package itself
+- **`prettier.config.ts`** / **`.prettierignore`** (repo root): The one Prettier config for the whole repo — don't add per-package Prettier configs
 - **`.dockerignore`** (repo root): Used by the four root-context builds above; `apps/backend/.dockerignore` is separate and still used by backend's own context
-- **`scripts/check-dependency-age.mjs`**: Maven + npm dependency-age audit; keep it in sync if `pom.xml`'s structure or the catalog format changes. It reads every `package.json` in the workspace (root, `packages/config`, `apps/frontend`, each bot) — add new manifests to its `manifests` list if you add a new workspace package.
-- **`.gitignore`**: Standard ignore patterns. Do not add a bare `Dockerfile` entry — that previously matched every file named `Dockerfile` in the repo and silently kept all five of them out of git history.
+- **`.env.example`** / **`.env.production.example`** (repo root): Templates for `.env`/`.env.production`, which are gitignored. Keep these in sync with whatever variables `docker-compose.yml` actually reads — if you add a new `${VAR:-default}` to docker-compose.yml, add the variable (with its default) to `.env.example` too, and to `.env.production.example` if it's something a real deployment should set explicitly (e.g. a password).
+- **`scripts/check-dependency-age.ts`**: Maven + npm dependency-age audit; keep it in sync if `pom.xml`'s structure or the catalog format changes. It reads every `package.json` in the workspace (root, `packages/config`, `apps/frontend`, each bot) — add new manifests to its `manifests` list if you add a new workspace package. Runs directly via `node scripts/check-dependency-age.ts` — Node 24 executes `.ts` natively, no build step or `ts-node` needed.
+- **`.gitignore`**: Standard ignore patterns. Do not add a bare `Dockerfile` entry — that previously matched every file named `Dockerfile` in the repo and silently kept all five of them out of git history. The `.env` block uses `.env` / `.env.*` with `!.env.example` / `!.env.*.example` negations — if you add a new env file pattern, make sure real files stay ignored and `.example` templates stay tracked.
 - **`README.md`**: Documentation only
 
 ### Environment Variables
 
-The following environment variables are available in the backend container:
+`docker-compose.yml` sources its configurable values from environment variables, each with a `:-default` fallback matching the original hardcoded values — so `docker-compose up --build` still works with zero setup even if no `.env` file exists. The variables: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, `BACKEND_PORT`, `FRONTEND_PORT`. `.env.example` documents all of them; `.env.production.example` is the same set with a placeholder password that must be replaced.
+
+- `.env` is auto-loaded by docker-compose from the project root (local dev, optional).
+- `.env.production` is **not** auto-loaded — it must be passed explicitly with `docker-compose --env-file .env.production up -d --build`. That's intentional: a production run should never happen by accident.
+- Both are gitignored; only the `.example` templates are tracked. If you add a new configurable value to docker-compose.yml, add it to both `.example` files too (see Infrastructure Files above).
+
+The following environment variables are available in the backend container itself (set by docker-compose from the `POSTGRES_*` values above, or directly when running the backend locally — see README's Development section):
 
 ```
 DB_URL=jdbc:postgresql://postgres:5432/crm
@@ -201,9 +211,10 @@ A task is complete when:
 | React | 19.x | Latest stable |
 | TypeScript | 7.x | Latest stable (Go-based compiler); dropped `baseUrl` and `moduleResolution: "node"` |
 | Vite | 8.x | Latest stable, for frontend |
-| ESLint | 10.x | Flat config (`eslint.config.mjs`) only, no legacy `.eslintrc` |
-| typescript-eslint | 8.63.0 | Pinned below latest — its `typescript` peer range caps under TS 7, so don't bump past what's tested to still work with the pinned TypeScript |
-| Prettier | 3.x | One config for the whole repo, see Shared Tooling Configs |
+| ESLint | 10.x | Flat config (`eslint.config.mjs`) only, no legacy `.eslintrc`; the config files stay `.mjs`, not `.ts` — see Shared Tooling Configs |
+| typescript-eslint | 8.63.0 | Not just "peer range caps under TS 7" — it hard-crashes on import against TypeScript 7 (confirmed through 8.64.0, the newest available). `packages/config` works around this with its own isolated `typescript@5.9.3` pin; see Shared Tooling Configs. Don't bump this without re-verifying against whatever TypeScript is pinned at the time |
+| Prettier | 3.x | One config for the whole repo (`.ts`), see Shared Tooling Configs |
+| jiti | — | **Not a dependency anywhere in this repo, intentionally.** It's what ESLint would need to load a `.ts` flat config, and installing it is what surfaced the typescript-eslint crash above. Don't add it back as a way to convert `eslint.config.mjs` to `.ts`. |
 | Docker | Latest | Container runtime |
 
 ## Dependency Pinning & Guardrails
@@ -217,7 +228,7 @@ A task is complete when:
 4. **Maven has no equivalent automatic gate**, so after editing `apps/backend/pom.xml` (adding or bumping any dependency or plugin), run the audit script before considering the task done:
 
    ```bash
-   node scripts/check-dependency-age.mjs
+   node scripts/check-dependency-age.ts
    # or: pnpm run check:dep-age
    ```
 
@@ -227,15 +238,17 @@ A task is complete when:
 
 TypeScript, ESLint, Prettier, and Vite configuration for `apps/frontend` and the three bots all come from `packages/config` (`@crm/config`), a private workspace package — not from `apps/backend`, which has no JS/TS tooling at all.
 
-1. **Don't inline a rule/option in an app when the shared base already covers it, or could reasonably cover it for more than one package.** Add it to `packages/config` instead: `typescript/base.json` (or `react-app.json`/`node.json`), `eslint/base.mjs` (or `react.mjs`/`node.mjs`), `prettier/index.mjs`, or `vite/base.mjs`. Each app's own `tsconfig.json`/`eslint.config.mjs`/`vite.config.ts` should only contain what's genuinely specific to that app (ports, proxy targets, `outDir`, etc.).
+1. **Don't inline a rule/option in an app when the shared base already covers it, or could reasonably cover it for more than one package.** Add it to `packages/config` instead: `typescript/base.json` (or `react-app.json`/`node.json`), `eslint/base.mjs` (or `react.mjs`/`node.mjs`), `prettier/index.ts`, or `vite/base.ts`. Each app's own `tsconfig.json`/`eslint.config.mjs`/`vite.config.ts` should only contain what's genuinely specific to that app (ports, proxy targets, `outDir`, etc.).
 
-2. **Prettier has exactly one config in the whole repo**: `prettier.config.mjs` at the root, which re-exports `@crm/config/prettier/index.mjs`. Never add a per-package Prettier config or a second `prettier.config.*` file.
+2. **Prettier has exactly one config in the whole repo**: `prettier.config.ts` at the root, which re-exports `@crm/config/prettier/index.ts`. Never add a per-package Prettier config or a second `prettier.config.*` file.
 
 3. **A new app that needs any of these tools must add `"@crm/config": "workspace:*"` as a devDependency**, plus its own direct `eslint`/`typescript`/`vite` devDependency (pnpm's strict `node_modules` means depending on `@crm/config` alone does not put those binaries on that package's `PATH` — only the config *content* is shared, the CLI tools are not).
 
 4. **The four JS/TS Dockerfiles (frontend + 3 bots) build from the repo root, not their own directory**, specifically so `tsc`/`vite build` running inside the image can resolve `@crm/config`. If you add a new Vite- or tsc-based service, its `docker-compose.yml` entry needs `context: .` + an explicit `dockerfile:` path (not `context: ./apps/<service>`), and its Dockerfile needs to `COPY` `pnpm-workspace.yaml`, the root `package.json`/`pnpm-lock.yaml`, `packages/config`, and its own `apps/<service>` directory before `pnpm install --frozen-lockfile`. Copy `apps/frontend` and `apps/bots` too even in a bot's Dockerfile — `pnpm install --frozen-lockfile` expects the on-disk package set to match every importer in the lockfile, not just the one you're building.
 
 5. **Before assuming an ESLint plugin's config export shape** (e.g., whether `plugin.configs.foo` is a plain object or a factory function you need to call), check it empirically against the actually-installed version rather than trusting a README or a different version's source — this has already changed once between what was documented and what's on the registry for a package pinned here. From `packages/config`: `node --input-type=module -e "import p from '<pkg>'; console.log(p.configs)"`.
+
+6. **`eslint/*.mjs` stays plain JS; everything else in `packages/config` is `.ts`.** Node runs `.ts` natively (used by `scripts/check-dependency-age.ts` and, via each tool's own loader, by Vite and Prettier) — but ESLint's flat config loader needs an extra `jiti` dependency to load a `.ts` config, and `jiti` + `typescript-eslint` + the pinned TypeScript 7 don't work together (see Version Constraints and the Shared config section above). Don't add `jiti` to try to convert the ESLint configs to TypeScript.
 
 ## Common Tasks
 
@@ -255,7 +268,7 @@ TypeScript, ESLint, Prettier, and Vite configuration for `apps/frontend` and the
 5. Add `Dockerfile` for containerization — copy an existing bot's `Dockerfile` and update the two `apps/bots/<name>` path segments; it must build from the repo root context (see Shared Tooling Configs)
 6. Add service to `docker-compose.yml` with `context: .` + `dockerfile: apps/bots/new-bot/Dockerfile` (not `context: ./apps/bots/new-bot`)
 7. `pnpm-workspace.yaml`'s `apps/bots/**` glob already covers it — no change needed there unless the new bot needs its own catalog entry
-8. Add the new `package.json` path to the `manifests` list in `scripts/check-dependency-age.mjs`
+8. Add the new `package.json` path to the `manifests` list in `scripts/check-dependency-age.ts`
 
 ### Update Dependencies
 
@@ -264,7 +277,7 @@ TypeScript, ESLint, Prettier, and Vite configuration for `apps/frontend` and the
 3. Use `-jvm` suffix for KTor artifacts
 4. Verify versions are compatible
 5. `pnpm install` — if it fails with `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`, pick an older version (see Dependency Pinning & Guardrails above), don't relax the policy
-6. For backend changes, run `node scripts/check-dependency-age.mjs` and fix any violation the same way
+6. For backend changes, run `node scripts/check-dependency-age.ts` and fix any violation the same way
 7. Test with Docker build
 
 ## Troubleshooting

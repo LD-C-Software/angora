@@ -1,4 +1,4 @@
-# CRM/Support System - Starter Monorepo
+# CRM/Support System Monorepo
 
 A self-hosted CRM/support system with a modern full-stack architecture. Every component runs in Docker containers.
 
@@ -39,10 +39,23 @@ flowchart TD
 | Bots | Node.js 24+, TypeScript 7 |
 | Containerization | Docker + Docker Compose |
 
-## Quickstart
+## Prerequisites
+
+To run the whole stack, you only need:
+
+- **Docker** and **Docker Compose v2** (`docker compose version` or `docker-compose version`)
+
+To develop a service outside its container (faster feedback loop than rebuilding an image on every change), you'll also need, depending on what you're touching:
+
+| Working on | Install |
+|------------|---------|
+| Frontend (`apps/frontend`) or bots (`apps/bots/*`) | Node.js 24.x and pnpm — `corepack enable` picks up the version pinned in [package.json](package.json)'s `packageManager` field automatically; otherwise `npm install -g pnpm@11.13.1` |
+| Backend (`apps/backend`) | JDK 25 and Maven |
+
+## Running the App
 
 ```bash
-# Clone and start the entire stack
+# Clone the repo, then from its root:
 docker-compose up --build
 ```
 
@@ -51,6 +64,12 @@ This will:
 2. Start the KTor backend on port 8080
 3. Start the React frontend on port 3000
 4. Start all bot services (Slack, Discord, Email)
+
+Once it's up:
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- Backend health check: [http://localhost:8080/api/health](http://localhost:8080/api/health)
+
+Run it in the background with `docker-compose up --build -d`, watch logs with `docker-compose logs -f`, and stop everything with `docker-compose down` (see [Docker Compose Commands](#docker-compose-commands) for more).
 
 ## Services
 
@@ -71,23 +90,43 @@ This will:
 
 ## Development
 
+Running everything through `docker-compose up --build` works, but rebuilding an image for every code change is slow. For active development, run Postgres (and whichever services you're *not* editing) in Docker, and run the service you're actually working on directly on your machine.
+
+Install JS/TS dependencies once from the repo root — this covers the frontend, all three bots, and the shared `packages/config`:
+
+```bash
+pnpm install
+```
+
 ### Backend (KTor + Exposed ORM)
 - **Location**: `apps/backend/`
 - **Language**: Kotlin 2.4.0
 - **Framework**: KTor 3.5.1
 - **ORM**: Exposed 1.3.1 (imports live under `org.jetbrains.exposed.v1.*` since the 1.0 rewrite)
 - **Database**: PostgreSQL 18
-- **Build**: `docker-compose build backend`
-- **Run**: `docker-compose up backend`
-- **Local Maven Build**: `mvn clean package -DskipTests` (requires JDK 25)
+- **Run via Docker**: `docker-compose up --build backend` (needs `postgres` running too; `docker-compose up --build postgres backend` starts both)
+- **Run locally**:
+  ```bash
+  # Start just the database in Docker, publishing 5432 to the host
+  docker-compose up -d postgres
+
+  cd apps/backend
+  mvn clean package -DskipTests    # requires JDK 25
+  DB_URL=jdbc:postgresql://localhost:5432/crm java -jar target/backend.jar
+  ```
+- **Test**: `curl http://localhost:8080/api/health`
 
 ### Frontend (React + Vite)
 - **Location**: `apps/frontend/`
 - **Framework**: React 19, TypeScript 7
 - **Bundler**: Vite 8.x
-- **Build**: `docker-compose build frontend`
-- **Run**: `docker-compose up frontend`
-- **Dev Mode**: `pnpm dev` (inside container)
+- **Run via Docker**: `docker-compose up --build frontend` (production build, served by nginx)
+- **Run locally** (hot-reloading dev server): with a backend reachable at `http://localhost:8080` (either `docker-compose up -d postgres backend` or running it locally per above), run:
+  ```bash
+  cd apps/frontend
+  pnpm dev
+  ```
+  This serves the app at [http://localhost:3000](http://localhost:3000) and proxies `/api` requests to `http://localhost:8080`.
 - **Lint**: `pnpm --filter crm-frontend run lint` (or `cd apps/frontend && pnpm run lint`)
 - **Typecheck**: `pnpm --filter crm-frontend run typecheck`
 
@@ -101,6 +140,9 @@ Each bot includes:
 - TypeScript source in `src/index.ts`
 - `package.json` with type: module
 - Dockerfile for containerization
+
+- **Run via Docker**: `docker-compose up --build slack-bot` (or `discord-bot` / `email-bot`)
+- **Run locally**: `cd apps/bots/<slack|discord|email> && pnpm run build && pnpm run start`
 - **Lint**: `pnpm --filter crm-<name>-bot run lint`
 
 ## Dependency Management
@@ -124,6 +166,7 @@ catalog:
   eslint-plugin-react-hooks: 7.1.1
   eslint-plugin-react-refresh: 0.5.3
   prettier: 3.9.5
+  vite: 8.1.4
 ```
 
 Each `package.json` references an entry as `"typescript": "catalog:"` instead of repeating the version. To bump one everywhere, edit the single line in `pnpm-workspace.yaml` and run `pnpm install`. The backend is a single Maven module, so there's no equivalent "share across modules" story on that side — its versions already live in one place, `apps/backend/pom.xml`.
@@ -136,10 +179,12 @@ Each `package.json` references an entry as `"typescript": "catalog:"` instead of
 |------|-----------------|-------------|
 | TypeScript | `typescript/base.json`, `typescript/react-app.json`, `typescript/node.json` | `"extends": "@crm/config/typescript/react-app.json"` (or `node.json`) in each app's `tsconfig.json` |
 | ESLint | `eslint/base.mjs`, `eslint/react.mjs`, `eslint/node.mjs` | `import reactConfig from '@crm/config/eslint/react.mjs'` in each app's `eslint.config.mjs` |
-| Prettier | `prettier/index.mjs` | One repo-root `prettier.config.mjs` re-exports it — Prettier is a single, repo-wide formatter, not a per-package one |
-| Vite | `vite/base.mjs` | `mergeConfig(base, { ...appSpecificConfig })` in `apps/frontend/vite.config.ts` |
+| Prettier | `prettier/index.ts` | One repo-root `prettier.config.ts` re-exports it — Prettier is a single, repo-wide formatter, not a per-package one |
+| Vite | `vite/base.ts` | `mergeConfig(base, { ...appSpecificConfig })` in `apps/frontend/vite.config.ts` |
 
 Only `apps/frontend` uses Vite today, but the base still lives in `@crm/config` so any future Vite-based service starts from the same defaults instead of copy-pasting `apps/frontend/vite.config.ts`.
+
+**Most of these config files are TypeScript, but the ESLint ones deliberately aren't.** Node runs `.ts` files natively (no build step, no `ts-node`), and Prettier does the same when loading `prettier.config.ts` — both worked as soon as we tried them. ESLint's flat config *can* load a `.ts` file too, but only via an extra `jiti` dependency, and pulling that thread surfaced a real, currently-unresolved problem: `typescript-eslint` (any 8.x version) crashes immediately on import against TypeScript 7 — its parser still expects an enum (`ts.Extension`) that TypeScript 7's Go-rewritten package no longer exports the same way, and this repo is pinned to TypeScript 7 for everything else. So `eslint/*.mjs` and every `eslint.config.mjs` stay plain JS (with JSDoc types) rather than `.ts`, and there's no `jiti` dependency in the repo. See the [Version Constraints](AGENTS.md#version-constraints) note in AGENTS.md for the workaround this required (`packages/config` pins its own older `typescript` just for `typescript-eslint`'s sake, separate from the TypeScript 7 the rest of the repo uses).
 
 Each app still declares its own `eslint`/`typescript` as a direct devDependency (pnpm's strict `node_modules` means a package only gets binaries for what it directly depends on — depending on `@crm/config` alone wouldn't put `eslint`/`tsc` on that package's `PATH`), plus `"@crm/config": "workspace:*"` for the actual config content.
 
@@ -150,10 +195,10 @@ Each app still declares its own `eslint`/`typescript` as a direct devDependency 
 Newly-published versions are a common supply-chain attack vector (a maintainer's account gets compromised, a malicious version goes out, and it's often caught and pulled within days). This repo blocks installing anything published in the last week:
 
 - **Frontend + bots (pnpm)**: `pnpm-workspace.yaml` sets `minimumReleaseAge: 10080` (7 days, in minutes) with `minimumReleaseAgeStrict: true`. This is enforced natively by pnpm on every `pnpm install`/`pnpm add` — for direct **and** transitive dependencies — and it re-verifies the committed `pnpm-lock.yaml` on every install, not just when adding something new. A too-new resolution makes the install fail outright rather than silently substituting an older version.
-- **Backend (Maven)**: Maven has no built-in equivalent, so `scripts/check-dependency-age.mjs` audits `apps/backend/pom.xml` (and, as a second line of defense, the npm side too) against each artifact's actual publish date on Maven Central / the npm registry. Run it with:
+- **Backend (Maven)**: Maven has no built-in equivalent, so `scripts/check-dependency-age.ts` audits `apps/backend/pom.xml` (and, as a second line of defense, the npm side too) against each artifact's actual publish date on Maven Central / the npm registry. Run it with:
 
   ```bash
-  node scripts/check-dependency-age.mjs
+  node scripts/check-dependency-age.ts
   # or
   pnpm run check:dep-age
   ```
@@ -196,17 +241,40 @@ docker-compose build frontend
 
 # Pull latest images (if not using build)
 docker-compose pull
+
+# Run with production values instead of the local .env / built-in defaults
+docker-compose --env-file .env.production up -d --build
 ```
 
 ## Environment Variables
 
-### Backend
-- `DB_URL`: PostgreSQL connection URL (default: `jdbc:postgresql://postgres:5432/crm`)
+### Docker Compose (`.env`, `.env.production`)
+
+`docker-compose.yml` reads its configurable values (database credentials, host ports) from environment variables, each with a default baked in — so `docker-compose up --build` works with zero setup, with or without a `.env` file present:
+
+| Variable | Default | Used by |
+|----------|---------|---------|
+| `POSTGRES_DB` | `crm` | `postgres`, and `backend`'s `DB_URL` |
+| `POSTGRES_USER` | `crm` | `postgres`, and `backend`'s `DB_USER` |
+| `POSTGRES_PASSWORD` | `crm` | `postgres`, and `backend`'s `DB_PASSWORD` |
+| `POSTGRES_PORT` | `5432` | Host port `postgres` publishes to |
+| `BACKEND_PORT` | `8080` | Host port `backend` publishes to |
+| `FRONTEND_PORT` | `3000` | Host port `frontend` publishes to |
+
+- **Local development**: copy [`.env.example`](.env.example) to `.env` (`cp .env.example .env`) and edit it — docker-compose loads `.env` from the project root automatically. This step is optional; the defaults above already match `.env.example`.
+- **Production-like run**: copy [`.env.production.example`](.env.production.example) to `.env.production`, fill in a real `POSTGRES_PASSWORD` (the placeholder isn't usable as-is), and pass it explicitly — docker-compose only auto-loads a file literally named `.env`, so this one is opt-in on purpose:
+  ```bash
+  docker-compose --env-file .env.production up -d --build
+  ```
+- Both `.env` and `.env.production` are gitignored (only the `.example` templates are tracked) — never commit real credentials.
+
+### Backend (running locally, outside Docker)
+- `DB_URL`: PostgreSQL connection URL (default: `jdbc:postgresql://postgres:5432/crm`, which only resolves inside the Docker network — see [Development](#development) for the `localhost` equivalent)
 - `DB_USER`: Database username (default: `crm`)
 - `DB_PASSWORD`: Database password (default: `crm`)
 
 ### Frontend
-- Proxies `/api` requests to backend via Vite config and nginx
+- Proxies `/api` requests to the backend — via `vite.config.ts` (`http://localhost:8080`) in the local dev server, via `nginx.conf` (`http://backend:8080`) in the production container
 
 ## Project Structure
 
@@ -224,8 +292,8 @@ crm-support/
 │   │   ├── src/
 │   │   │   ├── main.tsx           # React app entry
 │   │   │   └── index.html         # HTML template (Vite root)
-│   │   ├── vite.config.ts          # Merges @crm/config/vite/base.mjs
-│   │   ├── eslint.config.mjs       # Re-exports @crm/config/eslint/react.mjs
+│   │   ├── vite.config.ts          # Merges @crm/config/vite/base.ts
+│   │   ├── eslint.config.mjs       # Re-exports @crm/config/eslint/react.mjs — plain JS, see note below
 │   │   ├── package.json
 │   │   ├── tsconfig.json           # Extends @crm/config/typescript/react-app.json
 │   │   ├── tsconfig.node.json      # Extends @crm/config/typescript/base.json
@@ -248,23 +316,25 @@ crm-support/
 │       │   ├── base.json           # Strictness options common to every package
 │       │   ├── react-app.json      # + browser/bundler/jsx settings (extends base)
 │       │   └── node.json           # + nodenext module settings (extends base)
-│       ├── eslint/
+│       ├── eslint/                 # Plain JS (.mjs), not .ts — see the note below
 │       │   ├── base.mjs            # @eslint/js + typescript-eslint recommended
 │       │   ├── react.mjs           # base + react-hooks/react-refresh + prettier compat
 │       │   └── node.mjs            # base + node globals + prettier compat
 │       ├── prettier/
-│       │   └── index.mjs           # The one Prettier config for the whole repo
+│       │   └── index.ts            # The one Prettier config for the whole repo
 │       ├── vite/
-│       │   └── base.mjs            # Shared Vite defaults, merged via mergeConfig()
-│       └── package.json
+│       │   └── base.ts             # Shared Vite defaults, merged via mergeConfig()
+│       └── package.json            # Pins its own `typescript@5.9.3` — see note below
 │
 ├── scripts/
-│   └── check-dependency-age.mjs    # Maven + npm supply-chain age guardrail
+│   └── check-dependency-age.ts    # Maven + npm supply-chain age guardrail
 ├── docker-compose.yml              # frontend/bots build with context: . (repo root); backend keeps context: ./apps/backend
 ├── package.json                    # Root scripts, pinned packageManager, prettier devDependency
-├── prettier.config.mjs             # Re-exports @crm/config/prettier/index.mjs
+├── prettier.config.ts              # Re-exports @crm/config/prettier/index.ts
 ├── .prettierignore
 ├── .dockerignore                   # Used by the four root-context builds
+├── .env.example                    # Copy to `.env` for local overrides (optional — see Environment Variables)
+├── .env.production.example         # Copy to `.env.production`, fill in real secrets, use with --env-file
 ├── pnpm-workspace.yaml             # pnpm workspace config, catalog, age policy
 ├── pnpm-lock.yaml                  # Locked versions for the whole JS workspace
 ├── .gitignore
@@ -275,16 +345,13 @@ crm-support/
 
 | Service | Health Check | Endpoint |
 |---------|--------------|----------|
-| PostgreSQL | `pg_isready -U crm -d crm` | N/A |
+| PostgreSQL | `pg_isready -U $POSTGRES_USER -d $POSTGRES_DB` | N/A |
 | Backend | `curl -f http://localhost:8080/api/health` | `/api/health` |
 
 ## Database
 
 - **Engine**: PostgreSQL 18 (Alpine)
-- **Database**: `crm`
-- **User**: `crm`
-- **Password**: `crm`
-- **Port**: 5432
+- **Database / User / Password / Port**: `crm` / `crm` / `crm` / `5432` by default — override via `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_PORT` in `.env` (see [Environment Variables](#environment-variables))
 - **Volume**: `crm-postgres-data`, mounted at `/var/lib/postgresql` (PostgreSQL 18+ images lay out data in a version-specific subdirectory there, not at `/var/lib/postgresql/data` as in older images)
 - **Network**: `crm-network` (custom Docker network)
 
@@ -313,19 +380,18 @@ For AI agent assistance with this project, see [AGENTS.md](./AGENTS.md) for inst
 
 **Port Already in Use**:
 - List processes: `lsof -i :3000` or `lsof -i :8080`
-- Kill conflicting process or change ports in docker-compose.yml
+- Kill the conflicting process, or set `FRONTEND_PORT`/`BACKEND_PORT`/`POSTGRES_PORT` in `.env` (see [Environment Variables](#environment-variables)) instead of editing docker-compose.yml
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Make your changes
-4. Test with `docker-compose up --build`
-5. Commit your changes (`git commit -m 'Add some feature'`)
-6. Push to the branch (`git push origin feature/your-feature`)
-7. Open a Pull Request
+1. Create a feature branch (`git checkout -b feature/your-feature`)
+2. Make your changes
+3. Test with `docker-compose up --build`
+4. Commit your changes (`git commit -m 'Add some feature'`)
+5. Push the branch (`git push origin feature/your-feature`)
+6. Open a Pull Request
 
 ## License
 
-MIT License - Feel free to use this starter template for your own projects.
+MIT License
 
