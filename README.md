@@ -94,10 +94,19 @@ Run it in the background with `docker-compose up --build -d`, watch logs with `d
 
 Running everything through `docker-compose up --build` works, but rebuilding an image for every code change is slow. For active development, run Postgres (and whichever services you're *not* editing) in Docker, and run the service you're actually working on directly on your machine.
 
-Install JS/TS dependencies once from the repo root — this covers the frontend, all three bots, and the shared `packages/config`:
+Install JS/TS dependencies once from the repo root — this covers the frontend, all three bots, and the shared `packages/config`. This also sets up the git hooks described in [CI, Git Hooks & Deployment](#ci-git-hooks--deployment):
 
 ```bash
 pnpm install
+```
+
+Root-level aggregate scripts run the same check across every JS/TS package at once — useful before pushing, and exactly what CI runs:
+
+```bash
+pnpm run lint          # eslint across frontend + all 3 bots
+pnpm run typecheck     # tsc --noEmit across frontend + all 3 bots
+pnpm run test          # vitest across frontend + all 3 bots
+pnpm run format:check  # prettier, repo-wide (pnpm run format to auto-fix)
 ```
 
 ### Backend (KTor + Exposed ORM)
@@ -131,6 +140,7 @@ pnpm install
   This serves the app at [http://localhost:3000](http://localhost:3000) and proxies `/api` requests to `http://localhost:8080`.
 - **Lint**: `pnpm --filter crm-frontend run lint` (or `cd apps/frontend && pnpm run lint`)
 - **Typecheck**: `pnpm --filter crm-frontend run typecheck`
+- **Test**: `pnpm --filter crm-frontend run test` (Vitest; currently just a placeholder smoke test — see [Limitations](#limitations))
 
 ### Bots (Node.js + TypeScript)
 Each bot is a separate Node.js service with Docker support:
@@ -146,6 +156,7 @@ Each bot includes:
 - **Run via Docker**: `docker-compose up --build slack-bot` (or `discord-bot` / `email-bot`)
 - **Run locally**: `cd apps/bots/<slack|discord|email> && pnpm run build && pnpm run start`
 - **Lint**: `pnpm --filter crm-<name>-bot run lint`
+- **Test**: `pnpm --filter crm-<name>-bot run test` (Vitest; currently just a placeholder smoke test — see [Limitations](#limitations))
 
 ## Dependency Management
 
@@ -169,6 +180,7 @@ catalog:
   eslint-plugin-react-refresh: 0.5.3
   prettier: 3.9.5
   vite: 8.1.4
+  vitest: 4.1.10
 ```
 
 Each `package.json` references an entry as `"typescript": "catalog:"` instead of repeating the version. To bump one everywhere, edit the single line in `pnpm-workspace.yaml` and run `pnpm install`. The backend is a single Maven module, so there's no equivalent "share across modules" story on that side — its versions already live in one place, `apps/backend/pom.xml`.
@@ -206,6 +218,35 @@ Newly-published versions are a common supply-chain attack vector (a maintainer's
   ```
 
   This is a verification gate you run before merging a dependency bump (or wire into CI) — unlike the pnpm guardrail, it can't stop a `mvn install` from happening automatically, since Maven doesn't expose a hook for that.
+
+## CI, Git Hooks & Deployment
+
+### Git hooks (Husky)
+
+`pnpm install` automatically wires up two hooks via the root `prepare` script:
+
+| Hook | What it does |
+|------|--------------|
+| `pre-commit` | Runs `pnpm run lint` and `pnpm run format:check`. Check-only — it blocks the commit on a violation rather than auto-fixing; run `pnpm run format` (or fix the lint error) and commit again. |
+| `pre-push` | Blocks `git push` straight to `main` from any machine with these hooks installed, forcing changes through a branch + PR instead. |
+
+**The `pre-push` guard is a local stand-in for real GitHub branch protection, not a replacement for it.** This repo is private on a GitHub plan that doesn't support branch protection or repository rulesets (confirmed via the API — it returns "Upgrade to GitHub Pro or make this repository public"). The hook only affects pushes made from a machine that ran `pnpm install`; it's bypassable with `git push --no-verify` or from any clone without the hooks set up, and it has no effect on merging a PR via the GitHub UI/`gh pr merge`. See [Limitations](#limitations).
+
+### CI (`.github/workflows/ci.yml`)
+
+Runs on every pull request targeting `main` and every push to `main`:
+
+| Job | What it runs |
+|-----|--------------|
+| `backend` | `mvn test` against `apps/backend` |
+| `frontend-bots` | `pnpm run lint`, `pnpm run format:check`, `pnpm run typecheck` (+ the frontend's extra `tsconfig.node.json` check), `pnpm run test`, `pnpm -r run build` |
+| `guardrails` | `node scripts/check-dependency-age.ts` |
+
+The badge at the top of this README reflects the latest run against `main`. All third-party GitHub Actions are pinned to a commit SHA rather than a floating version tag.
+
+### Deploy (`.github/workflows/deploy.yml`)
+
+A placeholder, currently **manual-trigger only** (`workflow_dispatch` — run it from the Actions tab or `gh workflow run deploy.yml`). It builds nothing real yet; its steps are TODO stubs for pushing images to a registry and deploying to a real target. It will not run automatically until someone fills those in and changes its trigger to `push: branches: [main]`.
 
 ## Docker Compose Commands
 
@@ -282,6 +323,17 @@ docker-compose --env-file .env.production up -d --build
 
 ```
 crm-support/
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml                  # backend/frontend-bots/guardrails, on PR + push to main
+│   │   └── deploy.yml              # Manual-trigger-only placeholder, see Limitations
+│   ├── ISSUE_TEMPLATE/
+│   └── pull_request_template.md
+│
+├── .husky/
+│   ├── pre-commit                  # lint + format:check, check-only
+│   └── pre-push                    # Blocks direct push to main — local stand-in, see Limitations
+│
 ├── apps/
 │   ├── backend/
 │   │   ├── src/
@@ -293,7 +345,8 @@ crm-support/
 │   ├── frontend/
 │   │   ├── src/
 │   │   │   ├── main.tsx           # React app entry
-│   │   │   └── index.html         # HTML template (Vite root)
+│   │   │   ├── index.html         # HTML template (Vite root)
+│   │   │   └── placeholder.test.ts # Vitest smoke test — see Limitations
 │   │   ├── vite.config.ts          # Merges @crm/config/vite/base.ts
 │   │   ├── eslint.config.mjs       # Re-exports @crm/config/eslint/react.mjs — plain JS, see note below
 │   │   ├── package.json
@@ -304,9 +357,10 @@ crm-support/
 │   └── bots/
 │       ├── slack/
 │       │   ├── src/
-│       │   │   └── index.ts       # Slack bot stub
+│       │   │   ├── index.ts       # Slack bot stub
+│       │   │   └── placeholder.test.ts # Vitest smoke test — excluded from the tsc build output
 │       │   ├── package.json
-│       │   ├── tsconfig.json       # Extends @crm/config/typescript/node.json
+│       │   ├── tsconfig.json       # Extends @crm/config/typescript/node.json; excludes *.test.ts from build
 │       │   ├── eslint.config.mjs   # Re-exports @crm/config/eslint/node.mjs
 │       │   └── Dockerfile          # Builds from repo root context
 │       ├── discord/                # Same layout as slack/
@@ -331,7 +385,7 @@ crm-support/
 ├── scripts/
 │   └── check-dependency-age.ts    # Maven + npm supply-chain age guardrail
 ├── docker-compose.yml              # frontend/bots build with context: . (repo root); backend keeps context: ./apps/backend
-├── package.json                    # Root scripts, pinned packageManager, prettier devDependency
+├── package.json                    # Root scripts (lint/typecheck/test/format/prepare), pinned packageManager, husky + prettier devDependencies
 ├── prettier.config.ts              # Re-exports @crm/config/prettier/index.ts
 ├── .prettierignore
 ├── .dockerignore                   # Used by the four root-context builds
@@ -356,6 +410,14 @@ crm-support/
 - **Database / User / Password / Port**: `crm` / `crm` / `crm` / `5432` by default — override via `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_PORT` in `.env` (see [Environment Variables](#environment-variables))
 - **Volume**: `crm-postgres-data`, mounted at `/var/lib/postgresql` (PostgreSQL 18+ images lay out data in a version-specific subdirectory there, not at `/var/lib/postgresql/data` as in older images)
 - **Network**: `crm-network` (custom Docker network)
+
+## Limitations
+
+Things that look done but have known gaps worth knowing about before relying on them:
+
+- **No real branch protection.** GitHub branch protection / rulesets aren't available on this repo (private, on a plan that gates the feature — see [CI, Git Hooks & Deployment](#ci-git-hooks--deployment)). The `pre-push` git hook is a local-only workaround: it stops an accidental direct push from a machine that has the hooks installed, but it's not enforced by GitHub itself. Anyone can still push to `main` directly via `--no-verify`, an unhooked clone, or the GitHub web UI/API. Set up real branch protection (requiring the `backend`, `frontend-bots`, and `guardrails` checks) once the repo is public or the org is on a plan that supports it, and remove `.husky/pre-push` at that point.
+- **Test coverage is a placeholder, not real coverage.** The backend has zero tests (`mvn test` currently passes only because there's nothing to run). The frontend and each bot have exactly one placeholder Vitest smoke test each, added to give CI something meaningful to run — none of them test actual behavior yet. A green CI run currently means "compiles, lints, and formats correctly," not "is correct."
+- **Deploy is not wired up.** `.github/workflows/deploy.yml` is a manual-trigger-only stub with TODO steps — merging to `main` does not deploy anything anywhere yet.
 
 ## Agent Configuration
 
@@ -388,10 +450,10 @@ For AI agent assistance with this project, see [AGENTS.md](./AGENTS.md) for inst
 
 1. Create a feature branch (`git checkout -b feature/your-feature`)
 2. Make your changes
-3. Test with `docker-compose up --build`
-4. Commit your changes (`git commit -m 'Add some feature'`)
-5. Push the branch (`git push origin feature/your-feature`)
-6. Open a Pull Request
+3. Test with `docker-compose up --build` (and/or the per-service `lint`/`typecheck`/`test` commands above)
+4. Commit your changes (`git commit -m 'Add some feature'`) — the pre-commit hook runs lint + format:check automatically
+5. Push the branch (`git push origin feature/your-feature`) — pushing to `main` directly is blocked locally, see [CI, Git Hooks & Deployment](#ci-git-hooks--deployment)
+6. Open a Pull Request — CI runs automatically and reports status on the PR (not yet a hard merge gate, see [Limitations](#limitations))
 
 ## License
 
