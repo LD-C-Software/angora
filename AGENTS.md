@@ -188,7 +188,16 @@ pnpm install                 # from repo root; re-verifies the age guardrail too
 pnpm --filter <pkg> run lint
 pnpm --filter <pkg> exec tsc --noEmit   # frontend: also run against tsconfig.node.json
 pnpm run format:check        # from repo root; `pnpm run format` to fix
+pnpm run test                # from repo root; runs Vitest across frontend + all 3 bots
 ```
+
+### CI, hooks, and branch protection
+
+- **Pre-commit** (`.husky/pre-commit`): runs `pnpm run lint` + `pnpm run format:check` on every commit, check-only (no auto-fix). Set up automatically by `pnpm install` via the root `prepare` script.
+- **Pre-push** (`.husky/pre-push`): blocks `git push` directly to `main` from any machine with hooks installed — a **soft, local-only stand-in for real branch protection**, not a security boundary (bypassable with `--no-verify` or a push from an unhooked clone). This exists because real GitHub branch protection / rulesets are unavailable on this repo: it's private on a plan that gates that feature behind "upgrade to GitHub Pro or make this repository public" (confirmed via `gh api repos/.../branches/main/protection`). **Once the repo goes public or the org is on a plan that supports it, set up real branch protection requiring the `backend`, `frontend-bots`, and `guardrails` status checks, and delete `.husky/pre-push`.**
+- **CI** (`.github/workflows/ci.yml`): runs on every PR and every push to `main` — `backend` (`mvn test`), `frontend-bots` (lint, format:check, typecheck, test, build), `guardrails` (`check:dep-age`). All third-party Actions are pinned to commit SHA, not floating tags.
+- **Deploy** (`.github/workflows/deploy.yml`): manual `workflow_dispatch` only, with TODO placeholder steps — intentionally inert until a real deploy target exists. Don't change its trigger to run automatically without filling in the real steps first.
+- Since `main` isn't push-protected server-side, treat the pre-push hook as the only thing stopping an accidental direct push — don't work around it without good reason, and don't remove it without replacing it with real branch protection.
 
 ### Success Criteria
 
