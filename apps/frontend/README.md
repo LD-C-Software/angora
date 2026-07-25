@@ -19,6 +19,8 @@ cd apps/frontend
 pnpm dev
 ```
 
+Or from the repo root, without `cd`-ing in: `pnpm run dev:frontend` — same command, just a shortcut.
+
 This serves the app at [http://localhost:3000](http://localhost:3000) and proxies `/api` requests to `http://localhost:8080`.
 
 ## Commands
