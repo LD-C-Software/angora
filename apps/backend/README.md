@@ -24,6 +24,8 @@ cd apps/backend
 mvn compile exec:java
 ```
 
+Or from the repo root, without `cd`-ing in: `pnpm run dev:backend` — same command, just a shortcut.
+
 No env vars needed — `DB_URL` defaults to `localhost:5432` when nothing overrides it. See "Database access" below for exactly how that works.
 
 This runs via Ktor's `EngineMain` in development mode (`-Dio.ktor.development=true`, set by `exec-maven-plugin` in `pom.xml`). Server config — port, host, which module to load, and the database connection — all live in `src/main/resources/application.yaml`, not in `Application.kt`. Must be `.yaml`, not `.yml` — see Troubleshooting.
