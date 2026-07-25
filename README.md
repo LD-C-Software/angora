@@ -125,6 +125,15 @@ Run it in the background with `docker-compose up --build -d`, watch logs with `d
 
 Running everything through `docker-compose up --build` works, but rebuilding an image for every code change is slow. For active development, run Postgres (and whichever services you're _not_ editing) in Docker, and run the service you're actually working on directly on your machine — see each module's README for the specifics.
 
+Two root-level scripts run the frontend/backend dev servers without `cd`-ing into their directories first:
+
+```bash
+docker-compose up -d postgres   # backend needs this running
+
+pnpm run dev:frontend   # vite dev server on :3000
+pnpm run dev:backend    # Ktor hot-reload server on :8080 — requires JDK 25 + Maven on PATH
+```
+
 Install JS/TS dependencies once from the repo root — this covers the frontend, all three bots, and the shared `packages/config`, and also sets up the git hooks described in [CI, Git Hooks & Deployment](#ci-git-hooks--deployment):
 
 ```bash

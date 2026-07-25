@@ -10,7 +10,9 @@
     "typecheck": "pnpm --filter=\"!@crm/config\" -r exec tsc --noEmit",
     "test": "pnpm -r run test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "dev:frontend": "pnpm --filter crm-frontend run dev",
+    "dev:backend": "cd apps/backend && mvn compile exec:java"
   },
   "devDependencies": {
     "@crm/config": "workspace:*",
