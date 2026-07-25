@@ -1,7 +1,6 @@
 package com.crm
 
 import io.ktor.server.application.*
-import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.http.*
 import io.ktor.server.response.*
@@ -13,19 +12,18 @@ import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
-fun main() {
-    embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
-        .start(wait = true)
+fun main(args: Array<String>) {
+    EngineMain.main(args)
 }
 
-val database = Database.connect(
-    url = System.getenv("DB_URL") ?: "jdbc:postgresql://postgres:5432/crm",
-    driver = "org.postgresql.Driver",
-    user = System.getenv("DB_USER") ?: "crm",
-    password = System.getenv("DB_PASSWORD") ?: "crm"
-)
-
 fun Application.module() {
+    val database = Database.connect(
+        url = environment.config.property("database.url").getString(),
+        driver = "org.postgresql.Driver",
+        user = environment.config.property("database.user").getString(),
+        password = environment.config.property("database.password").getString()
+    )
+
     install(CORS) {
         anyHost()
         allowNonSimpleContentTypes = true

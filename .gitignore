@@ -13,6 +13,7 @@ build/
 # Maven
 .mvn/
 maven/
+dependency-reduced-pom.xml
 
 # IDE
 .idea/

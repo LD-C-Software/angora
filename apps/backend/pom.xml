@@ -89,6 +89,13 @@
             <artifactId>postgresql</artifactId>
             <version>42.7.13</version>
         </dependency>
+
+        <!-- YAML parsing for application.yaml, required by EngineMain -->
+        <dependency>
+            <groupId>io.ktor</groupId>
+            <artifactId>ktor-server-config-yaml-jvm</artifactId>
+            <version>${ktor.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -123,11 +130,29 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>com.crm.ApplicationKt</mainClass>
                                 </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
                             <outputFile>target/backend.jar</outputFile>
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <!-- `mvn compile exec:java` for local dev: runs EngineMain with Ktor's
+                     class-reloading dev mode enabled, so edits picked up by `mvn compile`
+                     (e.g. via a file watcher) apply without restarting the JVM. -->
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <mainClass>io.ktor.server.netty.EngineMain</mainClass>
+                    <systemProperties>
+                        <systemProperty>
+                            <key>io.ktor.development</key>
+                            <value>true</value>
+                        </systemProperty>
+                    </systemProperties>
+                </configuration>
             </plugin>
         </plugins>
     </build>

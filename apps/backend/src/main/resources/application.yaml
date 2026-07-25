@@ -1,0 +1,14 @@
+ktor:
+  deployment:
+    port: 8080
+    host: 0.0.0.0
+    watch:
+      - backend
+  application:
+    modules:
+      - com.crm.ApplicationKt.module
+
+database:
+  url: "${DB_URL:jdbc:postgresql://localhost:5432/crm}"
+  user: "${DB_USER:crm}"
+  password: "${DB_PASSWORD:crm}"
