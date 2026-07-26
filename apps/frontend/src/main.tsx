@@ -24,8 +24,8 @@ export function App() {
 
   return (
     <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>CRM Support System</h1>
-      <p>Welcome to the CRM Support System frontend.</p>
+      <h1>Angora</h1>
+      <p>Welcome to the Angora frontend.</p>
 
       <h2>Backend Health Check</h2>
       {loading && <p>Loading health status...</p>}

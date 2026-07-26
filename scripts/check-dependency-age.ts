@@ -57,7 +57,7 @@ async function collectMavenDeps(): Promise<Dep[]> {
     const artifactId = body.match(/<artifactId>([^<]+)<\/artifactId>/)?.[1]
     const rawVersion = body.match(/<version>([^<]+)<\/version>/)?.[1]
     if (!groupId || !artifactId || !rawVersion) continue
-    if (groupId === 'com.crm') continue // our own artifact, not an external dep
+    if (groupId === 'cloud.angora') continue // our own artifact, not an external dep
     deps.push({
       ecosystem: 'maven',
       source: 'apps/backend/pom.xml',

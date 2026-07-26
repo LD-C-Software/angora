@@ -1,8 +1,14 @@
-# CRM/Support System Monorepo
+<p align="center">
+  <img src="assets/logo.png" alt="Angora" width="220">
+</p>
 
-[![CI](https://github.com/LD-C-Software/crm-support/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LD-C-Software/crm-support/actions/workflows/ci.yml)
+# Angora
 
-A self-hosted CRM/support system with a modern full-stack architecture. Every component runs in containers — Docker or Podman, see [Container Runtime](#container-runtime) below.
+[![CI](https://github.com/LD-C-Software/angora/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LD-C-Software/angora/actions/workflows/ci.yml)
+
+Website: [angora.cloud](https://angora.cloud)
+
+Angora is a self-hosted CRM/support system with a modern full-stack architecture. Every component runs in containers — Docker or Podman, see [Container Runtime](#container-runtime) below.
 
 ## Table of Contents
 
@@ -91,7 +97,7 @@ Each service has its own README with service-specific setup, commands, and troub
 | Slack bot | [`apps/bots/slack/README.md`](apps/bots/slack/README.md) |
 | Discord bot | [`apps/bots/discord/README.md`](apps/bots/discord/README.md) |
 | Email bot | [`apps/bots/email/README.md`](apps/bots/email/README.md) |
-| Shared TS/ESLint/Prettier/Vite config (`@crm/config`) | [`packages/config/README.md`](packages/config/README.md) |
+| Shared TS/ESLint/Prettier/Vite config (`@angora/config`) | [`packages/config/README.md`](packages/config/README.md) |
 
 ## Prerequisites
 
@@ -132,12 +138,12 @@ Run it in the background with `docker-compose up --build -d`, watch logs with `d
 
 | Service | Port | Description | Container |
 | --------- | ------ | -------------- | ----------- |
-| postgres | 5432 | PostgreSQL database | crm-postgres |
-| backend | 8080 | KTor REST API | crm-backend |
-| frontend | 3000 | React web application | crm-frontend |
-| slack-bot | - | Slack integration bot | crm-slack-bot |
-| discord-bot | - | Discord integration bot | crm-discord-bot |
-| email-bot | - | Email processing bot | crm-email-bot |
+| postgres | 5432 | PostgreSQL database | angora-postgres |
+| backend | 8080 | KTor REST API | angora-backend |
+| frontend | 3000 | React web application | angora-frontend |
+| slack-bot | - | Slack integration bot | angora-slack-bot |
+| discord-bot | - | Discord integration bot | angora-discord-bot |
+| email-bot | - | Email processing bot | angora-email-bot |
 
 ## Development
 
@@ -196,7 +202,7 @@ Each `package.json` references an entry as `"typescript": "catalog:"` instead of
 
 ### Sharing tool configs
 
-TypeScript, ESLint, Prettier, and Vite configuration for `apps/frontend` and the three bots all come from one shared package, `packages/config` (`@crm/config`) — see its own [README](packages/config/README.md) for what's in it and why the ESLint configs deliberately stay plain `.mjs` instead of `.ts`.
+TypeScript, ESLint, Prettier, and Vite configuration for `apps/frontend` and the three bots all come from one shared package, `packages/config` (`@angora/config`) — see its own [README](packages/config/README.md) for what's in it and why the ESLint configs deliberately stay plain `.mjs` instead of `.ts`.
 
 ### Guardrail: no package younger than 7 days
 
@@ -272,7 +278,7 @@ docker-compose down -v
 docker ps
 
 # View container logs
-docker logs crm-backend
+docker logs angora-backend
 
 # Build specific service
 docker-compose build backend
@@ -293,9 +299,9 @@ docker-compose --env-file .env.production up -d --build
 
 | Variable | Default | Used by |
 | ---------- | --------- | --------- |
-| `POSTGRES_DB` | `crm` | `postgres`, and `backend`'s `DB_URL` |
-| `POSTGRES_USER` | `crm` | `postgres`, and `backend`'s `DB_USER` |
-| `POSTGRES_PASSWORD` | `crm` | `postgres`, and `backend`'s `DB_PASSWORD` |
+| `POSTGRES_DB` | `angora` | `postgres`, and `backend`'s `DB_URL` |
+| `POSTGRES_USER` | `angora` | `postgres`, and `backend`'s `DB_USER` |
+| `POSTGRES_PASSWORD` | `angora` | `postgres`, and `backend`'s `DB_PASSWORD` |
 | `POSTGRES_PORT` | `5432` | Host port `postgres` publishes to |
 | `BACKEND_PORT` | `8080` | Host port `backend` publishes to |
 | `FRONTEND_PORT` | `3000` | Host port `frontend` publishes to |
@@ -312,7 +318,7 @@ Backend-specific variables (`DB_URL`, `DB_USER`, `DB_PASSWORD`) are documented i
 ## Project Structure
 
 ```
-crm-support/
+angora/
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml                  # backend/frontend-bots/guardrails, on PR + push to main
@@ -334,13 +340,13 @@ crm-support/
 │       └── AGENTS.md               # Shared agent rules for all three bots
 │
 ├── packages/
-│   └── config/                     # @crm/config — see packages/config/README.md, AGENTS.md
+│   └── config/                     # @angora/config — see packages/config/README.md, AGENTS.md
 │
 ├── scripts/
 │   └── check-dependency-age.ts    # Maven + npm supply-chain age guardrail
 ├── docker-compose.yml              # frontend/bots build with context: . (repo root); backend keeps context: ./apps/backend
 ├── package.json                    # Root scripts (lint/typecheck/test/format/prepare), pinned packageManager, husky + prettier devDependencies
-├── prettier.config.ts              # Re-exports @crm/config/prettier/index.ts
+├── prettier.config.ts              # Re-exports @angora/config/prettier/index.ts
 ├── .prettierignore
 ├── .dockerignore                   # Used by the four root-context builds
 ├── .env.example                    # Copy to `.env` for local overrides (optional — see Environment Variables)
@@ -362,9 +368,9 @@ crm-support/
 ## Database
 
 - **Engine**: PostgreSQL 18 (Alpine)
-- **Database / User / Password / Port**: `crm` / `crm` / `crm` / `5432` by default — override via `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_PORT` in `.env` (see [Environment Variables](#environment-variables))
-- **Volume**: `crm-postgres-data`, mounted at `/var/lib/postgresql` (PostgreSQL 18+ images lay out data in a version-specific subdirectory there, not at `/var/lib/postgresql/data` as in older images)
-- **Network**: `crm-network` (custom Docker network)
+- **Database / User / Password / Port**: `angora` / `angora` / `angora` / `5432` by default — override via `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_PORT` in `.env` (see [Environment Variables](#environment-variables))
+- **Volume**: `angora-postgres-data`, mounted at `/var/lib/postgresql` (PostgreSQL 18+ images lay out data in a version-specific subdirectory there, not at `/var/lib/postgresql/data` as in older images)
+- **Network**: `angora-network` (custom Docker network)
 - **Schema**: managed by Flyway migrations, applied automatically on every backend startup — `companies`, `roles`, `users`, `accounts`, `contacts`. See [`apps/backend/README.md`](apps/backend/README.md#database-schema) for the table-by-table breakdown and how to add a migration.
 
 Connection details from the backend's own code live in [`apps/backend/README.md`](apps/backend/README.md#database-access).

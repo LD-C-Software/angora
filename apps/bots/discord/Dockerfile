@@ -1,5 +1,5 @@
 # Build context is the repo root (see docker-compose.yml), not this
-# directory, so the build can see the shared @crm/config workspace package
+# directory, so the build can see the shared @angora/config workspace package
 # that tsconfig.json / eslint.config.mjs extend.
 
 FROM node:24-alpine AS build

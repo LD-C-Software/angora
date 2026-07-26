@@ -1,3 +1,3 @@
-import reactConfig from '@crm/config/eslint/react.mjs'
+import reactConfig from '@angora/config/eslint/react.mjs'
 
 export default reactConfig

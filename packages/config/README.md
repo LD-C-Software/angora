@@ -1,13 +1,13 @@
-# @crm/config
+# @angora/config
 
-Shared TypeScript, ESLint, Prettier, and Vite configuration for the JS/TS side of the monorepo — [`apps/frontend`](../../apps/frontend/README.md) and all three bots ([slack](../../apps/bots/slack/README.md), [discord](../../apps/bots/discord/README.md), [email](../../apps/bots/email/README.md)). Not published to a real registry — consumed only via `"@crm/config": "workspace:*"`. `apps/backend` doesn't use this at all (no JS/TS tooling there).
+Shared TypeScript, ESLint, Prettier, and Vite configuration for the JS/TS side of the monorepo — [`apps/frontend`](../../apps/frontend/README.md) and all three bots ([slack](../../apps/bots/slack/README.md), [discord](../../apps/bots/discord/README.md), [email](../../apps/bots/email/README.md)). Not published to a real registry — consumed only via `"@angora/config": "workspace:*"`. `apps/backend` doesn't use this at all (no JS/TS tooling there).
 
 ## What's here
 
 | Tool       | Files                                                              | Consumed as                                                                 |
 | ------------ | --------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| TypeScript | `typescript/base.json`, `typescript/react-app.json`, `typescript/node.json` | `"extends": "@crm/config/typescript/react-app.json"` (or `node.json`) in each app's `tsconfig.json` |
-| ESLint     | `eslint/base.mjs`, `eslint/react.mjs`, `eslint/node.mjs`             | `import reactConfig from '@crm/config/eslint/react.mjs'` in each app's `eslint.config.mjs` |
+| TypeScript | `typescript/base.json`, `typescript/react-app.json`, `typescript/node.json` | `"extends": "@angora/config/typescript/react-app.json"` (or `node.json`) in each app's `tsconfig.json` |
+| ESLint     | `eslint/base.mjs`, `eslint/react.mjs`, `eslint/node.mjs`             | `import reactConfig from '@angora/config/eslint/react.mjs'` in each app's `eslint.config.mjs` |
 | Prettier   | `prettier/index.ts`                                                  | One repo-root `prettier.config.ts` re-exports it — Prettier is a single, repo-wide formatter, not a per-package one |
 | Vite       | `vite/base.ts`                                                       | `mergeConfig(base, { ...appSpecificConfig })` in `apps/frontend/vite.config.ts` |
 
@@ -34,7 +34,7 @@ This package's own `typescript` devDependency is pinned directly to `5.9.3`, **n
 
 ## Every app still needs its own `eslint`/`typescript` devDependency
 
-pnpm's strict `node_modules` means a package only gets binaries for what it directly depends on. Depending on `@crm/config` alone gives an app the config *content*, not the `eslint`/`tsc` CLIs — each app's own `package.json` still declares `"eslint": "catalog:"` and `"typescript": "catalog:"` directly.
+pnpm's strict `node_modules` means a package only gets binaries for what it directly depends on. Depending on `@angora/config` alone gives an app the config *content*, not the `eslint`/`tsc` CLIs — each app's own `package.json` still declares `"eslint": "catalog:"` and `"typescript": "catalog:"` directly.
 
 ## Docker builds see this package too
 

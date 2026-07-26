@@ -5,7 +5,7 @@ Scoped to `apps/bots/*/` (slack, discord, email). All three are identical in str
 - **Runtime**: Node.js 24+ + TypeScript 7
 - **Build**: pnpm + `tsc`
 - **Module resolution**: `moduleResolution: "nodenext"` (TypeScript 7 removed the old `"node"`/node10 resolution mode); keep `module` set to `"nodenext"` too since they must match.
-- **`tsconfig.json` extends `@crm/config/typescript/node.json`; `eslint.config.mjs` re-exports `@crm/config/eslint/node.mjs`** — see `packages/config/AGENTS.md`.
+- **`tsconfig.json` extends `@angora/config/typescript/node.json`; `eslint.config.mjs` re-exports `@angora/config/eslint/node.mjs`** — see `packages/config/AGENTS.md`.
 - **`Dockerfile` builds from the repo root**, not the bot's own directory.
 - **`tsconfig.json` excludes `src/**/*.test.ts`** from the compiled `dist/` output — the `build`/`start` scripts should never ship the placeholder Vitest test.
 
@@ -26,8 +26,8 @@ Scoped to `apps/bots/*/` (slack, discord, email). All three are identical in str
 
 1. Create directory `apps/bots/new-bot/`
 2. Add `src/index.ts` with bot logic
-3. Add `package.json` — `"typescript": "catalog:"`, `"eslint": "catalog:"`, `"vitest": "catalog:"`, `"@crm/config": "workspace:*"` as devDependencies, plus `build`/`start`/`lint`/`test` scripts (copy an existing bot's `package.json` as the template)
-4. Add `tsconfig.json` that extends `@crm/config/typescript/node.json`, excludes `src/**/*.test.ts`, and `eslint.config.mjs` that re-exports `@crm/config/eslint/node.mjs` (copy an existing bot's files — they're all identical except `outDir`/`rootDir`, which don't even vary)
+3. Add `package.json` — `"typescript": "catalog:"`, `"eslint": "catalog:"`, `"vitest": "catalog:"`, `"@angora/config": "workspace:*"` as devDependencies, plus `build`/`start`/`lint`/`test` scripts (copy an existing bot's `package.json` as the template)
+4. Add `tsconfig.json` that extends `@angora/config/typescript/node.json`, excludes `src/**/*.test.ts`, and `eslint.config.mjs` that re-exports `@angora/config/eslint/node.mjs` (copy an existing bot's files — they're all identical except `outDir`/`rootDir`, which don't even vary)
 5. Add a placeholder `src/placeholder.test.ts` (copy an existing bot's) so CI's test step has something to run
 6. Add `Dockerfile` for containerization — copy an existing bot's `Dockerfile` and update the two `apps/bots/<name>` path segments; it must build from the repo root context (see `packages/config/AGENTS.md`)
 7. Add the service to `docker-compose.yml` with `context: .` + `dockerfile: apps/bots/new-bot/Dockerfile` (not `context: ./apps/bots/new-bot`)

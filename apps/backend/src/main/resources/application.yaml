@@ -6,9 +6,9 @@ ktor:
       - backend
   application:
     modules:
-      - com.crm.ApplicationKt.module
+      - cloud.angora.ApplicationKt.module
 
 database:
-  url: "${DB_URL:jdbc:postgresql://localhost:5432/crm}"
-  user: "${DB_USER:crm}"
-  password: "${DB_PASSWORD:crm}"
+  url: "${DB_URL:jdbc:postgresql://localhost:5432/angora}"
+  user: "${DB_USER:angora}"
+  password: "${DB_PASSWORD:angora}"

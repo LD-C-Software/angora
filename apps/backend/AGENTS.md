@@ -41,7 +41,7 @@ Scoped to `apps/backend/`. See the [root AGENTS.md](../../AGENTS.md) for repo-wi
 2. Respect FK dependency order: a table referencing another must come after it.
 3. If the table needs an `updated_at` column, reuse the shared `set_updated_at()` trigger function created in `V1__create_companies_table.sql` rather than redefining it.
 4. Update `src/Tables.kt` with a matching Exposed `Table`/`UUIDTable` definition — the SQL migration is the source of truth, `Tables.kt` should always mirror it exactly.
-5. Migrations run automatically on the next backend startup (`Application.kt` calls `Flyway...migrate()` before `Database.connect(...)`) — no manual migration command needed. Test with `docker-compose up -d postgres` + `mvn compile exec:java`, then confirm with `docker-compose exec postgres psql -U crm -d crm -c '\dt'`.
+5. Migrations run automatically on the next backend startup (`Application.kt` calls `Flyway...migrate()` before `Database.connect(...)`) — no manual migration command needed. Test with `docker-compose up -d postgres` + `mvn compile exec:java`, then confirm with `docker-compose exec postgres psql -U angora -d angora -c '\dt'`.
 
 ## Dependencies
 

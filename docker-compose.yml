@@ -3,22 +3,22 @@ version: '3.8'
 services:
   postgres:
     image: postgres:18-alpine
-    container_name: crm-postgres
+    container_name: angora-postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-crm}
-      POSTGRES_USER: ${POSTGRES_USER:-crm}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crm}
+      POSTGRES_DB: ${POSTGRES_DB:-angora}
+      POSTGRES_USER: ${POSTGRES_USER:-angora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-angora}
     volumes:
-      - crm-postgres-data:/var/lib/postgresql
+      - angora-postgres-data:/var/lib/postgresql
     ports:
       - '${POSTGRES_PORT:-5432}:5432'
     networks:
-      - crm-network
+      - angora-network
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'pg_isready -U ${POSTGRES_USER:-crm} -d ${POSTGRES_DB:-crm}',
+          'pg_isready -U ${POSTGRES_USER:-angora} -d ${POSTGRES_DB:-angora}',
         ]
       interval: 5s
       timeout: 5s
@@ -28,20 +28,20 @@ services:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
-    container_name: crm-backend
+    container_name: angora-backend
     environment:
       # postgres:5432 is the internal Docker network address — always fixed,
       # regardless of what POSTGRES_PORT maps to on the host.
-      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-crm}
-      DB_USER: ${POSTGRES_USER:-crm}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-crm}
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-angora}
+      DB_USER: ${POSTGRES_USER:-angora}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-angora}
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - '${BACKEND_PORT:-8080}:8080'
     networks:
-      - crm-network
+      - angora-network
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:8080/api/health']
       interval: 30s
@@ -53,47 +53,47 @@ services:
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile
-    container_name: crm-frontend
+    container_name: angora-frontend
     depends_on:
       - backend
     ports:
       - '${FRONTEND_PORT:-3000}:3000'
     networks:
-      - crm-network
+      - angora-network
 
   slack-bot:
     build:
       context: .
       dockerfile: apps/bots/slack/Dockerfile
-    container_name: crm-slack-bot
+    container_name: angora-slack-bot
     depends_on:
       - backend
     networks:
-      - crm-network
+      - angora-network
 
   discord-bot:
     build:
       context: .
       dockerfile: apps/bots/discord/Dockerfile
-    container_name: crm-discord-bot
+    container_name: angora-discord-bot
     depends_on:
       - backend
     networks:
-      - crm-network
+      - angora-network
 
   email-bot:
     build:
       context: .
       dockerfile: apps/bots/email/Dockerfile
-    container_name: crm-email-bot
+    container_name: angora-email-bot
     depends_on:
       - backend
     networks:
-      - crm-network
+      - angora-network
 
 volumes:
-  crm-postgres-data:
+  angora-postgres-data:
 
 networks:
-  crm-network:
+  angora-network:
     driver: bridge

@@ -1,6 +1,6 @@
 import { defineConfig, mergeConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { base } from '@crm/config/vite/base'
+import { base } from '@angora/config/vite/base'
 
 export default defineConfig(
   mergeConfig(base, {

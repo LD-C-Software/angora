@@ -1,4 +1,4 @@
-# AI Agent Guidelines for CRM/Support Monorepo
+# AI Agent Guidelines for Angora
 
 This document provides repo-wide instructions and constraints for AI agents working with this project. Each module also has its own scoped `AGENTS.md` — read the one for whatever you're actually touching, in addition to this one:
 
@@ -7,11 +7,11 @@ This document provides repo-wide instructions and constraints for AI agents work
 | Backend | [`apps/backend/AGENTS.md`](apps/backend/AGENTS.md) |
 | Frontend | [`apps/frontend/AGENTS.md`](apps/frontend/AGENTS.md) |
 | Bots (slack/discord/email — identical rules) | [`apps/bots/AGENTS.md`](apps/bots/AGENTS.md) |
-| Shared config (`@crm/config`) | [`packages/config/AGENTS.md`](packages/config/AGENTS.md) |
+| Shared config (`@angora/config`) | [`packages/config/AGENTS.md`](packages/config/AGENTS.md) |
 
 ## Project Overview
 
-This is a **self-hosted CRM/Support System** starter monorepo with the following architecture:
+This is **Angora**, a self-hosted CRM/support system, built as a starter monorepo with the following architecture:
 
 - **Backend**: KTor 3.5.1 + Kotlin 2.4.0 + Exposed ORM 1.3.1 + PostgreSQL 18
 - **Frontend**: React 19 + TypeScript 7 + Vite 8
@@ -43,9 +43,9 @@ See [README.md](README.md) for the full quickstart, service list, and project st
 
 ## Infrastructure Files
 
-- **`docker-compose.yml`**: Service orchestration. `frontend`, `slack-bot`, `discord-bot`, `email-bot` build with `context: .` (repo root) + an explicit `dockerfile:` path — required so their builds can see `packages/config`. Only `backend` still uses `context: ./apps/backend`. Don't revert the four to a per-app context; that would break `@crm/config` resolution inside the image. Database credentials and host ports are `${VAR:-default}` interpolations reading from `.env` — see Environment Variables below.
+- **`docker-compose.yml`**: Service orchestration. `frontend`, `slack-bot`, `discord-bot`, `email-bot` build with `context: .` (repo root) + an explicit `dockerfile:` path — required so their builds can see `packages/config`. Only `backend` still uses `context: ./apps/backend`. Don't revert the four to a per-app context; that would break `@angora/config` resolution inside the image. Database credentials and host ports are `${VAR:-default}` interpolations reading from `.env` — see Environment Variables below.
 - **`pnpm-workspace.yaml`**: Workspace packages (including `packages/config`), the shared version `catalog:`, and the `minimumReleaseAge` supply-chain policy — see Dependency Pinning & Guardrails below before touching this file
-- **`package.json`** (repo root): `packageManager` pin, the `check:dep-age`/`lint`/`typecheck`/`test`/`format`/`format:check`/`prepare`/`dev:frontend`/`dev:backend` scripts, and `husky` + `prettier` + `@crm/config` as devDependencies; not a workspace package itself. `dev:frontend`/`dev:backend` just shell out to each service's own local-dev command (see `apps/frontend/README.md` / `apps/backend/README.md`) — they exist purely so you don't have to `cd` in first, they don't add new behavior.
+- **`package.json`** (repo root): `packageManager` pin, the `check:dep-age`/`lint`/`typecheck`/`test`/`format`/`format:check`/`prepare`/`dev:frontend`/`dev:backend` scripts, and `husky` + `prettier` + `@angora/config` as devDependencies; not a workspace package itself. `dev:frontend`/`dev:backend` just shell out to each service's own local-dev command (see `apps/frontend/README.md` / `apps/backend/README.md`) — they exist purely so you don't have to `cd` in first, they don't add new behavior.
 - **`prettier.config.ts`** / **`.prettierignore`** (repo root): The one Prettier config for the whole repo — don't add per-package Prettier configs
 - **`.dockerignore`** (repo root): Used by the four root-context builds above; `apps/backend/.dockerignore` is separate and still used by backend's own context
 - **`.env.example`** / **`.env.production.example`** (repo root): Templates for `.env`/`.env.production`, which are gitignored. Keep these in sync with whatever variables `docker-compose.yml` actually reads — if you add a new `${VAR:-default}` to docker-compose.yml, add the variable (with its default) to `.env.example` too, and to `.env.production.example` if it's something a real deployment should set explicitly (e.g. a password).
@@ -163,7 +163,7 @@ This project is headed toward a public, self-hosted release — every new depend
 
 ## Shared Tooling Configs
 
-TypeScript, ESLint, Prettier, and Vite configuration for `apps/frontend` and the three bots all come from `packages/config` (`@crm/config`) — see [`packages/config/README.md`](packages/config/README.md) for what's shared and why, and [`packages/config/AGENTS.md`](packages/config/AGENTS.md) for the editing rules. The short version: don't inline a rule/option in an app when the shared base already covers it or could cover it for more than one package, Prettier has exactly one config in the whole repo, and every app still needs its own direct `eslint`/`typescript` devDependency even though the config content comes from `@crm/config`.
+TypeScript, ESLint, Prettier, and Vite configuration for `apps/frontend` and the three bots all come from `packages/config` (`@angora/config`) — see [`packages/config/README.md`](packages/config/README.md) for what's shared and why, and [`packages/config/AGENTS.md`](packages/config/AGENTS.md) for the editing rules. The short version: don't inline a rule/option in an app when the shared base already covers it or could cover it for more than one package, Prettier has exactly one config in the whole repo, and every app still needs its own direct `eslint`/`typescript` devDependency even though the config content comes from `@angora/config`.
 
 ## Common Tasks
 

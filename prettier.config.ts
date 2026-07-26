@@ -1,1 +1,1 @@
-export { default } from '@crm/config/prettier/index.ts'
+export { default } from '@angora/config/prettier/index.ts'

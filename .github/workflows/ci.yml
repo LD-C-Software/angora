@@ -34,7 +34,7 @@ jobs:
       - run: pnpm run lint
       - run: pnpm run format:check
       - run: pnpm run typecheck
-      - run: pnpm --filter crm-frontend exec tsc --noEmit -p tsconfig.node.json
+      - run: pnpm --filter angora-frontend exec tsc --noEmit -p tsconfig.node.json
       - run: pnpm run test
       - run: pnpm -r run build
 

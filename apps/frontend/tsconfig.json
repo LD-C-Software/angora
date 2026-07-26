@@ -1,5 +1,5 @@
 {
-  "extends": "@crm/config/typescript/react-app.json",
+  "extends": "@angora/config/typescript/react-app.json",
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"]

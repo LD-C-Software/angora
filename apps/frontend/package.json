@@ -1,7 +1,7 @@
 {
-  "name": "crm-frontend",
+  "name": "angora-frontend",
   "version": "1.0.0",
-  "description": "CRM Support System Frontend",
+  "description": "Angora Frontend",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,7 +17,7 @@
     "typescript": "catalog:"
   },
   "devDependencies": {
-    "@crm/config": "workspace:*",
+    "@angora/config": "workspace:*",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.3",
