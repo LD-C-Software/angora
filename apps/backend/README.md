@@ -90,9 +90,9 @@ All config — including the database block — lives in the one `application.ya
 
 ```yaml
 database:
-  url: "${DB_URL:jdbc:postgresql://localhost:5432/crm}"
-  user: "${DB_USER:crm}"
-  password: "${DB_PASSWORD:crm}"
+  url: "${DB_URL:jdbc:postgresql://localhost:5432/angora}"
+  user: "${DB_USER:angora}"
+  password: "${DB_PASSWORD:angora}"
 ```
 
 `${VAR:default}` is Ktor's own environment-variable substitution (no extra library). The rule is always the same, everywhere this file is read: **if a real `DB_URL`/`DB_USER`/`DB_PASSWORD` environment variable is set, use it; otherwise fall back to the literal default shown.** There's no per-environment file and no `-config=` flag to remember — the same `application.yaml` produces different actual values only because different launch contexts set different real env vars:
@@ -109,9 +109,9 @@ The last two rows use the exact same `application.yaml` and the exact same Docke
 
 | Variable      | Default                                    | Notes                                                                                     |
 | -------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `DB_URL`      | `jdbc:postgresql://localhost:5432/crm`     | Docker Compose overrides this to `postgres:5432` for the containerized backend |
-| `DB_USER`     | `crm`                                       |                                                                                                |
-| `DB_PASSWORD` | `crm`                                       |                                                                                                |
+| `DB_URL`      | `jdbc:postgresql://localhost:5432/angora`  | Docker Compose overrides this to `postgres:5432` for the containerized backend |
+| `DB_USER`     | `angora`                                    |                                                                                                |
+| `DB_PASSWORD` | `angora`                                    |                                                                                                |
 
 In Docker Compose these are set from `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD` — see the root README's [Environment Variables](../../README.md#environment-variables) section. That's also where the actual dev-vs-production credential split happens (`.env` vs `.env.production`) — this module doesn't participate in that choice at all, it just reads whatever ends up in its environment.
 

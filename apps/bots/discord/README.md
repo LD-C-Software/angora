@@ -1,9 +1,9 @@
 # Discord bot
 
-Discord integration bot (`crm-discord-bot`) — Node.js service that talks to the backend.
+Discord integration bot (`angora-discord-bot`) — Node.js service that talks to the backend.
 
 - **Runtime**: Node.js 24+, TypeScript 7
-- **Config**: TypeScript/ESLint configs are extended from [`@crm/config`](../../../packages/config/README.md), the shared config package
+- **Config**: TypeScript/ESLint configs are extended from [`@angora/config`](../../../packages/config/README.md), the shared config package
 
 See the [root README](../../../README.md) for the one-command `docker-compose up --build` quickstart and repo-wide concerns (environment variables, CI, dependency guardrails). See the [Slack bot](../slack/README.md) and [Email bot](../email/README.md) READMEs — same layout, same commands.
 
@@ -28,7 +28,7 @@ pnpm run start
 | `pnpm run test`      | Vitest — currently just a placeholder smoke test, see the root README's [Limitations](../../../README.md#limitations) |
 | `pnpm run start`     | `node dist/index.js`                                                                                 |
 
-Run these from `apps/bots/discord/`, or from the repo root as `pnpm --filter crm-discord-bot run <script>`.
+Run these from `apps/bots/discord/`, or from the repo root as `pnpm --filter angora-discord-bot run <script>`.
 
 ## Communicating with the backend
 

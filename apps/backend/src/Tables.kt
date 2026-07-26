@@ -1,4 +1,4 @@
-package com.crm
+package cloud.angora
 
 import org.jetbrains.exposed.v1.core.dao.id.java.UUIDTable
 import org.jetbrains.exposed.v1.javatime.timestamp

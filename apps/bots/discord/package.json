@@ -1,7 +1,7 @@
 {
-  "name": "crm-discord-bot",
+  "name": "angora-discord-bot",
   "version": "1.0.0",
-  "description": "CRM Discord Bot",
+  "description": "Angora Discord Bot",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -12,7 +12,7 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "@crm/config": "workspace:*",
+    "@angora/config": "workspace:*",
     "eslint": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

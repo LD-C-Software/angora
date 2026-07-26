@@ -1,3 +1,3 @@
-import nodeConfig from '@crm/config/eslint/node.mjs'
+import nodeConfig from '@angora/config/eslint/node.mjs'
 
 export default nodeConfig

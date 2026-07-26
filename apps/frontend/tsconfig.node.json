@@ -1,5 +1,5 @@
 {
-  "extends": "@crm/config/typescript/base.json",
+  "extends": "@angora/config/typescript/base.json",
   "compilerOptions": {
     "composite": true,
     "module": "ESNext",

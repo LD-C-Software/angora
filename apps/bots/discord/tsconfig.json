@@ -1,5 +1,5 @@
 {
-  "extends": "@crm/config/typescript/node.json",
+  "extends": "@angora/config/typescript/node.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src"

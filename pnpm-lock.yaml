@@ -44,7 +44,7 @@ importers:
 
   .:
     devDependencies:
-      '@crm/config':
+      '@angora/config':
         specifier: workspace:*
         version: link:packages/config
       husky:
@@ -56,7 +56,7 @@ importers:
 
   apps/bots/discord:
     devDependencies:
-      '@crm/config':
+      '@angora/config':
         specifier: workspace:*
         version: link:../../../packages/config
       eslint:
@@ -71,7 +71,7 @@ importers:
 
   apps/bots/email:
     devDependencies:
-      '@crm/config':
+      '@angora/config':
         specifier: workspace:*
         version: link:../../../packages/config
       eslint:
@@ -86,7 +86,7 @@ importers:
 
   apps/bots/slack:
     devDependencies:
-      '@crm/config':
+      '@angora/config':
         specifier: workspace:*
         version: link:../../../packages/config
       eslint:
@@ -111,7 +111,7 @@ importers:
         specifier: 'catalog:'
         version: 7.0.2
     devDependencies:
-      '@crm/config':
+      '@angora/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@types/react':
