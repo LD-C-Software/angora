@@ -12,7 +12,7 @@ Scoped to `packages/config/`. See the [root AGENTS.md](../../AGENTS.md) for repo
 ## Allowed changes
 
 - Anything under `typescript/`, `eslint/` (as plain `.mjs`, see above), `prettier/`, `vite/`
-- `package.json` — Dependencies (keep entries pointed at `catalog:` where the version is also used elsewhere, **except** the intentional `typescript: 5.9.3` pin above)
+- `package.json` — Dependencies (keep entries pointed at `catalog:` where the version is also used elsewhere, **except** the intentional `typescript: 5.9.3` pin above; check the license of anything new — see the root AGENTS.md's [Licensing](../../AGENTS.md#licensing) section)
 
 ## Forbidden changes
 

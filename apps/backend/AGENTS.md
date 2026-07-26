@@ -4,7 +4,8 @@ Scoped to `apps/backend/`. See the [root AGENTS.md](../../AGENTS.md) for repo-wi
 
 - **Language**: Kotlin 2.4.0
 - **Framework**: KTor 3.5.1
-- **ORM**: Exposed 1.3.1 — imports are `org.jetbrains.exposed.v1.jdbc.*`, **not** the pre-1.0 `org.jetbrains.exposed.sql.*` paths shown in older tutorials/blog posts
+- **ORM**: Exposed 1.3.1 — imports are `org.jetbrains.exposed.v1.jdbc.*`, **not** the pre-1.0 `org.jetbrains.exposed.sql.*` paths shown in older tutorials/blog posts. Table objects (`src/Tables.kt`) use `UUIDTable` from `org.jetbrains.exposed.v1.core.dao.id.java.UUIDTable` — not `org.jetbrains.exposed.v1.core.dao.id.UuidTable`, which is a different, Kotlin-native-`Uuid`-typed class with a deceptively similar name/casing.
+- **Migrations**: Flyway 12.11.0 (`flyway-core` + `flyway-database-postgresql`, the latter required separately since Flyway 10 split DB-specific support out of core). SQL files live in `src/main/resources/db/migration/`, run automatically via `Flyway.configure().dataSource(...).load().migrate()` in `Application.kt` on every startup, before the Exposed `Database.connect(...)` call.
 - **Build**: Maven with JDK 25
 - **Dependencies**: Use the `-jvm` suffix for all KTor artifacts — the non-suffixed coordinate for a Kotlin-multiplatform Ktor module resolves under plain Maven to a metadata-only stub with zero real classes. It compiles fine and fails silently/confusingly at runtime, so this is easy to get wrong and hard to notice.
 - **Config**: `src/main/resources/application.yaml` (must be `.yaml`, not `.yml` — Ktor's packaged-jar config auto-discovery doesn't recognize `.yml`) holds Ktor's own deployment/module config *and* the `database.*` block (`DB_URL`/`DB_USER`/`DB_PASSWORD`, each `${VAR:default}`-substituted against real env vars, no separate per-environment file). `Application.kt` reads it via `environment.config.property(...)`, not `System.getenv()` directly.
@@ -12,7 +13,9 @@ Scoped to `apps/backend/`. See the [root AGENTS.md](../../AGENTS.md) for repo-wi
 ## Allowed changes
 
 - `src/Application.kt` — KTor routes and business logic
+- `src/Tables.kt` — Exposed `Table`/`UUIDTable` definitions, kept in sync with `src/main/resources/db/migration/`
 - `src/main/resources/application.yaml` — Ktor deployment config and database connection settings
+- `src/main/resources/db/migration/` — Flyway SQL migrations
 - `pom.xml` — Dependencies and plugins
 - `Dockerfile`, `.dockerignore` — Container configuration
 
@@ -32,6 +35,14 @@ Scoped to `apps/backend/`. See the [root AGENTS.md](../../AGENTS.md) for repo-wi
 3. Use Exposed for database operations
 4. Test with `docker-compose up --build backend`, or faster: `pnpm run dev:backend` (or `mvn compile exec:java` from `apps/backend/`) against `docker-compose up -d postgres` — hot-reloads on `mvn compile`, no restart needed. See `apps/backend/README.md`'s "Locally, with hot reload" section.
 
+### Add a new migration
+
+1. Add a new file to `src/main/resources/db/migration/`, named `V{n}__description.sql` where `{n}` is the next unused integer (Flyway applies them in numeric order, tracks what's already run, and refuses to re-run or reorder an applied one — never edit an already-applied migration in place, add a new one instead).
+2. Respect FK dependency order: a table referencing another must come after it.
+3. If the table needs an `updated_at` column, reuse the shared `set_updated_at()` trigger function created in `V1__create_companies_table.sql` rather than redefining it.
+4. Update `src/Tables.kt` with a matching Exposed `Table`/`UUIDTable` definition — the SQL migration is the source of truth, `Tables.kt` should always mirror it exactly.
+5. Migrations run automatically on the next backend startup (`Application.kt` calls `Flyway...migrate()` before `Database.connect(...)`) — no manual migration command needed. Test with `docker-compose up -d postgres` + `mvn compile exec:java`, then confirm with `docker-compose exec postgres psql -U crm -d crm -c '\dt'`.
+
 ## Dependencies
 
 Maven has no automatic supply-chain age gate (unlike the pnpm side). After adding or bumping any dependency/plugin in `pom.xml`, run the audit script from the repo root before considering the task done:
@@ -42,6 +53,8 @@ node scripts/check-dependency-age.ts
 ```
 
 If it reports a violation, pick an older version of that artifact — check the real publish date via `curl -sI https://repo1.maven.org/maven2/<group-path>/<artifact>/<version>/<artifact>-<version>.pom | grep -i last-modified` (Maven Central's Solr search index lags/misses recent releases, so don't trust `search.maven.org` for this). See the root AGENTS.md's [Dependency Pinning & Guardrails](../../AGENTS.md#dependency-pinning--guardrails) for the full policy.
+
+Also check the license of any new Maven dependency/plugin, not just its age — see the root AGENTS.md's [Licensing](../../AGENTS.md#licensing) section. Watch especially for dual-licensed "open-core" JVM libraries (free for Postgres/open-source databases, paid for commercial ones).
 
 ## Troubleshooting
 
