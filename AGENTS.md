@@ -28,16 +28,17 @@ See [README.md](README.md) for the full quickstart, service list, and project st
 
 ## General Rules
 
-1. **Always use Docker**: Never assume host tools (JDK, Node.js, pnpm, Maven) are installed. All development and testing must happen inside containers.
+1. **Always use a container runtime**: Never assume host tools (JDK, Node.js, pnpm, Maven) are installed. All development and testing must happen inside containers, via Docker or Podman — see the root [README's Container Runtime section](README.md#container-runtime). `docker`/`docker-compose` commands shown anywhere in this repo's docs work identically with `podman`/`podman-compose`; don't assume Docker specifically is installed on the host.
 
 2. **Read before editing**: Never edit a file without reading it first in the current session.
 
 3. **Minimal changes**: Only modify files explicitly requested or necessary to fulfill the task. Don't touch unrelated files.
 
-4. **Verify with Docker**: After any changes, validate with:
+4. **Verify with a container build**: After any changes, validate with:
    ```bash
-   docker-compose build
-   docker-compose up --build
+   docker-compose build && docker-compose up --build
+   # or, with Podman:
+   podman-compose build && podman-compose up --build
    ```
 
 ## Infrastructure Files
@@ -70,7 +71,7 @@ See [README.md](README.md) for the full quickstart, service list, and project st
 
 ## Testing Commands
 
-After making changes, always verify with:
+After making changes, always verify with (substitute `podman`/`podman-compose` for `docker`/`docker-compose` if that's the available runtime — see [General Rules](#general-rules)):
 
 ```bash
 # Full stack test
@@ -114,7 +115,7 @@ See each module's own `AGENTS.md` for `--filter`-scoped equivalents and module-s
 
 A task is complete when:
 
-1. ✅ All relevant tests pass (Docker build succeeds)
+1. ✅ All relevant tests pass (container build succeeds, via Docker or Podman)
 2. ✅ The code runs and produces expected output
 3. ✅ User's explicit acceptance criterion is met
 4. ✅ No new warnings or errors in logs
@@ -126,6 +127,7 @@ A task is complete when:
 | Kotlin | 2.4.0 | Newest version that clears the 7-day age guardrail (2.4.10 is newer but too recent); required for KTor 3.5.1 + Exposed 1.3.1 |
 | KTor | 3.5.1 | Latest stable |
 | Exposed | 1.3.1 | Latest stable; post-1.0 `org.jetbrains.exposed.v1.*` package layout |
+| Flyway | 12.11.0 | `flyway-core` + `flyway-database-postgresql` (split from core since Flyway 10); newest version clearing the 7-day age guardrail as of this pinning |
 | PostgreSQL JDBC | 42.7.13 | Latest stable |
 | PostgreSQL (server) | 18.x | `docker-compose.yml` uses `postgres:18-alpine`; volume mounts at `/var/lib/postgresql`, not `/var/lib/postgresql/data` |
 | Node.js | 24.x | Active LTS; used for frontend and bots |
@@ -148,6 +150,16 @@ A task is complete when:
 3. **A 7-day minimum release age is enforced — don't work around it.** `pnpm-workspace.yaml` sets `minimumReleaseAge: 10080` (minutes) with `minimumReleaseAgeStrict: true`, so `pnpm install`/`pnpm add` will hard-fail if a resolved version (direct or transitive) was published in the last 7 days. **This is expected behavior, not a bug**: if you hit `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`, pin the dependency to the next older version instead of lowering/removing `minimumReleaseAge`. Never edit `minimumReleaseAge`, `minimumReleaseAgeStrict`, or add entries to `minimumReleaseAgeExclude` to make a failing install pass, unless the user explicitly asks you to change the policy itself.
 
 4. **Maven has no equivalent automatic gate**, so after editing `apps/backend/pom.xml` (adding or bumping any dependency or plugin), run the audit script before considering the task done — see [`apps/backend/AGENTS.md`](apps/backend/AGENTS.md).
+
+## Licensing
+
+This project is headed toward a public, self-hosted release — every new dependency or tool should assume an external user needs to freely use, modify, and redistribute the resulting software, without having to think about it.
+
+1. **Prefer permissive open-source licenses.** MIT, Apache 2.0, BSD (2-/3-clause), and ISC are all safe defaults — no reciprocal disclosure/redistribution obligations, no friction for commercial or closed-source use by whoever self-hosts this.
+2. **Be cautious with copyleft licenses (GPL/LGPL/AGPL).** These can impose obligations on the whole application depending on how the library is linked/used — AGPL in particular extends its "conveying" trigger to network use, which matters directly for a self-hosted server product like this one. Don't pull one in as a direct dependency without flagging it for review first.
+3. **Watch for dual-licensed / "open-core" tools.** Some libraries are free for certain contexts but require a paid commercial license for others — e.g. jOOQ is Apache 2.0 for open-source databases like PostgreSQL, but needs a commercial license for closed-source databases like Oracle or SQL Server. A currently-free dependency can flip to a paid one if a later infra choice changes what it's paired with — re-check when that happens.
+4. **When choosing between comparable tools, all else equal, prefer the more permissively-licensed one**, and don't assume a popular tool is automatically fine — check.
+5. This is a judgment call, not an automated gate (unlike [Dependency Pinning & Guardrails](#dependency-pinning--guardrails) above) — nothing in CI checks license compatibility, so it needs a deliberate look whenever something new is added.
 
 ## Shared Tooling Configs
 

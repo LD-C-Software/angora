@@ -8,11 +8,11 @@ KTor REST API backend with Exposed ORM, backed by PostgreSQL.
 - **Database**: PostgreSQL 18
 - **Build**: Maven, JDK 25
 
-See the [root README](../../README.md) for the one-command `docker-compose up --build` quickstart and repo-wide concerns (environment variables, CI, dependency guardrails).
+See the [root README](../../README.md) for the one-command `docker-compose up --build` quickstart and repo-wide concerns (environment variables, CI, dependency guardrails). Every `docker`/`docker-compose` command on this page works the same with `podman`/`podman-compose` — see the root README's [Container Runtime](../../README.md#container-runtime) section.
 
 ## Running
 
-**Via Docker** (from the repo root): `docker-compose up --build backend` — needs `postgres` running too; `docker-compose up --build postgres backend` starts both.
+**Via Docker/Podman** (from the repo root): `docker-compose up --build backend` — needs `postgres` running too; `docker-compose up --build postgres backend` starts both.
 
 **Locally, with hot reload** (recommended for development):
 
@@ -117,6 +117,22 @@ In Docker Compose these are set from `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PAS
 
 None of this is read directly via `System.getenv()` in Kotlin — `Application.kt` only ever reads `environment.config.property(...)`, which resolves through the substitution above.
 
+## Database Schema
+
+Migrations are plain SQL files in `src/main/resources/db/migration/`, applied by [Flyway](https://flywaydb.org/) — `Application.kt` calls `Flyway.configure().dataSource(...).load().migrate()` before opening the Exposed connection, so the schema is always brought up to date automatically on every backend startup (dev and Docker alike). No manual migration command to remember. Files are named `V{n}__description.sql` and applied in order; Flyway tracks what's already run and won't re-apply or reorder anything, so an already-applied migration is never edited — a schema change is always a new file.
+
+Current tables (all UUID-keyed, all scoped by `company_id` where relevant — see `apps/backend/AGENTS.md` for the "Add a new migration" steps):
+
+| Table | Purpose |
+| --- | --- |
+| `companies` | The org(s) using this instance — one row for a self-hosted install, potentially many when the deployment is shared multi-tenant |
+| `roles` | Global system roles (`owner`/`admin`/`member`/`customer`, seeded by `V2`) plus optional per-company custom roles |
+| `users` | Login/auth — both internal staff and customer portal logins share this table, distinguished by `role_id` |
+| `accounts` | Customer/prospect organizations a company does business with |
+| `contacts` | People at those accounts; a contact only gets a portal login once linked to a `users` row |
+
+`src/Tables.kt` holds the matching Exposed `Table`/`UUIDTable` definitions used to query these from Kotlin — kept in sync with the SQL migrations by hand, since Flyway's migrations (not Exposed) are the source of truth for the actual schema.
+
 ## Troubleshooting
 
 **Maven build fails**: check the JDK version in `Dockerfile` matches the Kotlin version; verify dependency versions are compatible; check Maven Central for latest versions.
@@ -133,3 +149,8 @@ None of this is read directly via `System.getenv()` in Kotlin — `Application.k
 - Verify the database connection: `docker-compose logs backend`
 - Test manually: `curl http://localhost:8080/api/health`
 - Make sure `DB_URL` uses `postgres` as the hostname (not `localhost`) when running inside Docker
+
+**Backend fails on startup with a Flyway error**: check the exact message in `docker-compose logs backend` first.
+
+- `FlywayValidateException` / checksum mismatch: an already-applied migration file was edited after the fact. Flyway hashes each migration and refuses to proceed if a previously-run file no longer matches what was recorded — revert the edit and add a new migration instead, or (local dev database only, never shared/production data) drop the database and let Flyway recreate it from scratch.
+- Any actual SQL error (bad syntax, FK violation, etc.) in a new migration: fix the `.sql` file and restart — Flyway hasn't recorded that version as applied, so it'll retry it cleanly next launch.

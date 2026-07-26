@@ -15,7 +15,7 @@ Scoped to `apps/frontend/`. See the [root AGENTS.md](../../AGENTS.md) for repo-w
 - `src/main.tsx` — React components
 - `vite.config.ts` — Vite configuration (the app-specific object merged on top of the shared base)
 - `eslint.config.mjs` — Only if adding app-specific overrides on top of `@crm/config/eslint/react.mjs`; put reusable rules in the shared package instead
-- `package.json` — Dependencies
+- `package.json` — Dependencies (check the license of anything new — see the root AGENTS.md's [Licensing](../../AGENTS.md#licensing) section)
 - `Dockerfile` — Container configuration
 
 ## Forbidden changes

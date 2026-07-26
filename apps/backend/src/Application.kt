@@ -9,6 +9,7 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.plugins.cors.routing.*
 import kotlinx.serialization.json.Json
+import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
@@ -17,11 +18,20 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
+    val dbUrl = environment.config.property("database.url").getString()
+    val dbUser = environment.config.property("database.user").getString()
+    val dbPassword = environment.config.property("database.password").getString()
+
+    Flyway.configure()
+        .dataSource(dbUrl, dbUser, dbPassword)
+        .load()
+        .migrate()
+
     val database = Database.connect(
-        url = environment.config.property("database.url").getString(),
+        url = dbUrl,
         driver = "org.postgresql.Driver",
-        user = environment.config.property("database.user").getString(),
-        password = environment.config.property("database.password").getString()
+        user = dbUser,
+        password = dbPassword
     )
 
     install(CORS) {

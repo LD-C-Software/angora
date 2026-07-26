@@ -2,12 +2,13 @@
 
 [![CI](https://github.com/LD-C-Software/crm-support/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/LD-C-Software/crm-support/actions/workflows/ci.yml)
 
-A self-hosted CRM/support system with a modern full-stack architecture. Every component runs in Docker containers.
+A self-hosted CRM/support system with a modern full-stack architecture. Every component runs in containers — Docker or Podman, see [Container Runtime](#container-runtime) below.
 
 ## Table of Contents
 
 - [Architecture](#architecture)
 - [Tech Stack](#tech-stack)
+- [Container Runtime](#container-runtime)
 - [Modules](#modules)
 - [Prerequisites](#prerequisites)
 - [Running the App](#running-the-app)
@@ -58,10 +59,26 @@ flowchart TD
 
 | Component         | Technology                                                  |
 | -------------------- | ---------------------------------------------------------------- |
-| Backend            | KTor 3.5.1, Kotlin 2.4.0, Exposed ORM 1.3.1, PostgreSQL 18       |
+| Backend            | KTor 3.5.1, Kotlin 2.4.0, Exposed ORM 1.3.1, Flyway 12.11.0, PostgreSQL 18 |
 | Frontend           | React 19, TypeScript 7, Vite 8                                    |
 | Bots               | Node.js 24+, TypeScript 7                                          |
-| Containerization   | Docker + Docker Compose                                            |
+| Containerization   | Docker + Docker Compose (or Podman + `podman-compose`, see below)  |
+
+## Container Runtime
+
+Every `docker` / `docker-compose` command in this README and the module docs works the same with **Podman**: swap `docker-compose` for `podman-compose` (or the `podman compose` subcommand on Podman 4+, which delegates to whichever compose provider is installed — `podman-compose` here) and `docker` for `podman`. Both read the same `docker-compose.yml`, so nothing else about the setup changes. Verified against Podman 5.7.0 / `podman-compose` 1.5.0.
+
+```bash
+# Docker
+docker-compose up --build
+docker ps
+
+# Podman equivalent
+podman-compose up --build
+podman ps
+```
+
+If you don't have Docker installed at all, use Podman throughout — none of the instructions below assume one specifically, they just show `docker`/`docker-compose` since that's this repo's primary-documented runtime.
 
 ## Modules
 
@@ -78,9 +95,10 @@ Each service has its own README with service-specific setup, commands, and troub
 
 ## Prerequisites
 
-To run the whole stack, you only need:
+To run the whole stack, you only need a container runtime — either:
 
-- **Docker** and **Docker Compose v2** (`docker compose version` or `docker-compose version`)
+- **Docker** and **Docker Compose v2** (`docker compose version` or `docker-compose version`), or
+- **Podman** and `podman-compose` (`podman --version` and `podman-compose --version`) — see [Container Runtime](#container-runtime)
 
 To develop a service outside its container (faster feedback loop than rebuilding an image on every change), you'll also need, depending on what you're touching:
 
@@ -226,6 +244,8 @@ A placeholder, currently **manual-trigger only** (`workflow_dispatch` — run it
 
 ## Docker Compose Commands
 
+Using Podman instead? See [Container Runtime](#container-runtime) — every command below works unchanged with `podman-compose`/`podman` in place of `docker-compose`/`docker`.
+
 ```bash
 # Start all services
 docker-compose up --build
@@ -345,6 +365,7 @@ crm-support/
 - **Database / User / Password / Port**: `crm` / `crm` / `crm` / `5432` by default — override via `POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_PORT` in `.env` (see [Environment Variables](#environment-variables))
 - **Volume**: `crm-postgres-data`, mounted at `/var/lib/postgresql` (PostgreSQL 18+ images lay out data in a version-specific subdirectory there, not at `/var/lib/postgresql/data` as in older images)
 - **Network**: `crm-network` (custom Docker network)
+- **Schema**: managed by Flyway migrations, applied automatically on every backend startup — `companies`, `roles`, `users`, `accounts`, `contacts`. See [`apps/backend/README.md`](apps/backend/README.md#database-schema) for the table-by-table breakdown and how to add a migration.
 
 Connection details from the backend's own code live in [`apps/backend/README.md`](apps/backend/README.md#database-access).
 
@@ -364,11 +385,11 @@ For AI agent assistance with this project, see [AGENTS.md](./AGENTS.md) for repo
 
 ### Common Issues
 
-**Docker Build Fails**:
+**Docker/Podman Build Fails**:
 
-- Ensure Docker is running: `docker --version`
-- Check disk space: `docker system df`
-- Clean build cache: `docker-compose build --no-cache`
+- Ensure the runtime is working: `docker --version` (or `podman --version`)
+- Check disk space: `docker system df` (or `podman system df`)
+- Clean build cache: `docker-compose build --no-cache` (or `podman-compose build --no-cache`)
 
 **Port Already in Use**:
 
