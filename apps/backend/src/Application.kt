@@ -36,16 +36,24 @@ fun Application.module() {
 
     install(CORS) {
         anyHost()
-        allowNonSimpleContentTypes = true
+        allowMethod(HttpMethod.Options)
+        allowMethod(HttpMethod.Put)
+        allowMethod(HttpMethod.Patch)
+        allowMethod(HttpMethod.Delete)
         allowHeader(HttpHeaders.ContentType)
+        allowHeader(HttpHeaders.Authorization)
+        allowNonSimpleContentTypes = true
     }
 
     install(ContentNegotiation) {
         json(Json {
             prettyPrint = true
             isLenient = true
+            encodeDefaults = true
         })
     }
+
+    val discordClientId = System.getenv("DISCORD_CLIENT_ID") ?: "123456789012345678"
 
     routing {
         get("/api/health") {
@@ -58,5 +66,7 @@ fun Application.module() {
             }
             call.respond(healthStatus)
         }
+
+        discordRoutes(database, discordClientId)
     }
 }

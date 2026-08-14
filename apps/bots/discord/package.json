@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "test": "vitest run"
   },
-  "dependencies": {},
+  "dependencies": {
+    "discord.js": "14.18.0"
+  },
   "devDependencies": {
     "@angora/config": "workspace:*",
     "eslint": "catalog:",

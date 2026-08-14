@@ -1,6 +1,7 @@
 {
   "extends": "@angora/config/typescript/react-app.json",
   "compilerOptions": {
+    "jsx": "react",
     "paths": {
       "@/*": ["./src/*"]
     }

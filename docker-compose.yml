@@ -35,6 +35,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-angora}
       DB_USER: ${POSTGRES_USER:-angora}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-angora}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-123456789012345678}
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,6 +77,12 @@ services:
       context: .
       dockerfile: apps/bots/discord/Dockerfile
     container_name: angora-discord-bot
+    ports:
+      - '3001:3001'
+    environment:
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-YOUR_DISCORD_BOT_TOKEN}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-123456789012345678}
+      BACKEND_URL: http://backend:8080
     depends_on:
       - backend
     networks:
