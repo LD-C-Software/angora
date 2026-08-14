@@ -1,4 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import {
+  API_ENDPOINTS,
+  APP_ROUTES,
+  DISCORD_TABS,
+  type DiscordTabType,
+  TIMING,
+  FORM_DEFAULTS,
+  TOAST_DEFAULT_TITLES,
+  MESSAGES,
+  UI_TEXT,
+} from './constants'
 
 interface DiscordServer {
   id: string
@@ -30,7 +41,7 @@ export interface ToastNotification {
 async function fetchWithTimeout(
   input: RequestInfo | URL,
   init: RequestInit = {},
-  timeoutMs: number = 3500,
+  timeoutMs: number = TIMING.REQUEST_TIMEOUT_MS,
 ): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -43,7 +54,7 @@ async function fetchWithTimeout(
   } catch (err: unknown) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new Error(
-        `Request timed out after ${timeoutMs / 1000}s (Backend unreachable or paused)`,
+        MESSAGES.TIMEOUT_ERROR(timeoutMs / TIMING.MS_PER_SECOND),
         { cause: err },
       )
     }
@@ -53,15 +64,48 @@ async function fetchWithTimeout(
   }
 }
 
+/**
+ * Safe JSON response parser that guards against HTML gateway error pages and non-JSON payloads
+ */
+async function parseJsonResponse<T>(res: Response): Promise<T> {
+  const contentType = res.headers.get('content-type') || ''
+  if (!res.ok) {
+    if (contentType.includes('application/json')) {
+      const errData = (await res.json().catch(() => ({}))) as {
+        error?: string
+      }
+      throw new Error(errData.error || `HTTP error ${res.status}`)
+    }
+    throw new Error(
+      `HTTP error ${res.status} (${res.statusText || 'Gateway Error'})`,
+    )
+  }
+  if (!contentType.includes('application/json')) {
+    throw new Error('Invalid response format: Expected JSON response')
+  }
+  const data = (await res.json()) as T
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    'error' in data &&
+    typeof (data as { error?: unknown }).error === 'string'
+  ) {
+    throw new Error((data as { error: string }).error)
+  }
+  return data
+}
+
 export function App() {
   // Navigation Routing State
   const [currentPath, setCurrentPath] = useState<string>(() => {
-    return window.location.pathname.startsWith('/discord') ? '/discordbot' : '/'
+    return window.location.pathname.startsWith(APP_ROUTES.DISCORD_PREFIX)
+      ? APP_ROUTES.DISCORD_BOT
+      : APP_ROUTES.HOME
   })
 
   // Discord Manager Sub-tabs
-  const [activeTab, setActiveTab] = useState<'discord' | 'commands' | 'health'>(
-    'discord',
+  const [activeTab, setActiveTab] = useState<DiscordTabType>(
+    DISCORD_TABS.DISCORD,
   )
   const [servers, setServers] = useState<DiscordServer[]>([])
   const [inviteData, setInviteData] = useState<InviteData | null>(null)
@@ -72,7 +116,9 @@ export function App() {
   // Manual server form state
   const [manualGuildId, setManualGuildId] = useState('')
   const [manualName, setManualName] = useState('')
-  const [manualMemberCount, setManualMemberCount] = useState(10)
+  const [manualMemberCount, setManualMemberCount] = useState<number>(
+    FORM_DEFAULTS.DEFAULT_MEMBER_COUNT,
+  )
 
   // Polling lock and error debounce refs
   const isPollingRef = useRef(false)
@@ -86,17 +132,10 @@ export function App() {
       title?: string,
     ) => {
       const id = Math.random().toString(36).substring(2, 9)
-      const defaultTitle = {
-        error: 'System Alert',
-        success: 'Operation Successful',
-        warning: 'System Warning',
-        info: 'System Information',
-      }[type]
-
       const newToast: ToastNotification = {
         id,
         type,
-        title: title || defaultTitle,
+        title: title || TOAST_DEFAULT_TITLES[type],
         message,
       }
 
@@ -104,7 +143,7 @@ export function App() {
 
       setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id))
-      }, 5000)
+      }, TIMING.TOAST_AUTO_DISMISS_MS)
     },
     [],
   )
@@ -116,13 +155,21 @@ export function App() {
   // Handle client-side routing
   const navigate = (path: string) => {
     window.history.pushState({}, '', path)
-    setCurrentPath(path.startsWith('/discord') ? '/discordbot' : '/')
+    setCurrentPath(
+      path.startsWith(APP_ROUTES.DISCORD_PREFIX)
+        ? APP_ROUTES.DISCORD_BOT
+        : APP_ROUTES.HOME,
+    )
   }
 
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname
-      setCurrentPath(path.startsWith('/discord') ? '/discordbot' : '/')
+      setCurrentPath(
+        path.startsWith(APP_ROUTES.DISCORD_PREFIX)
+          ? APP_ROUTES.DISCORD_BOT
+          : APP_ROUTES.HOME,
+      )
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
@@ -135,16 +182,14 @@ export function App() {
         setLoading(true)
       }
       try {
-        const res = await fetchWithTimeout('/api/discord/servers', {}, 3500)
-        if (!res.ok)
-          throw new Error(`HTTP error ${res.status}: Unable to load servers`)
-        const data: DiscordServer[] = await res.json()
+        const res = await fetchWithTimeout(API_ENDPOINTS.SERVERS)
+        const data = await parseJsonResponse<DiscordServer[]>(res)
         setServers(data)
         setLoading(false)
       } catch (err: unknown) {
         const message =
-          err instanceof Error ? err.message : 'Failed to load servers'
-        addToast(message, 'error', 'Server Fetch Error')
+          err instanceof Error ? err.message : MESSAGES.SERVERS_FETCH_ERROR
+        addToast(message, 'error', TOAST_DEFAULT_TITLES.error)
         setLoading(false)
       }
     },
@@ -153,23 +198,18 @@ export function App() {
 
   const fetchInviteLink = useCallback(async () => {
     try {
-      const res = await fetchWithTimeout('/api/discord/bot/invite', {}, 3500)
-      const data = await res.json()
-      if (!res.ok || data.error) {
-        throw new Error(data.error || `HTTP error ${res.status}`)
-      }
-      setInviteData(data as InviteData)
+      const res = await fetchWithTimeout(API_ENDPOINTS.INVITE)
+      const data = await parseJsonResponse<InviteData>(res)
+      setInviteData(data)
     } catch (err: unknown) {
       const message =
-        err instanceof Error
-          ? err.message
-          : 'Failed to fetch Discord invite URL'
-      addToast(message, 'warning', 'Discord Configuration')
+        err instanceof Error ? err.message : MESSAGES.INVITE_FETCH_ERROR
+      addToast(message, 'warning', MESSAGES.INVITE_CONFIG_TITLE)
     }
   }, [addToast])
 
   useEffect(() => {
-    if (currentPath !== '/discordbot') return
+    if (currentPath !== APP_ROUTES.DISCORD_BOT) return
 
     let isMounted = true
 
@@ -179,10 +219,8 @@ export function App() {
       if (showLoading) setLoading(true)
 
       try {
-        const res = await fetchWithTimeout('/api/discord/servers', {}, 3500)
-        if (!res.ok)
-          throw new Error(`HTTP error ${res.status}: Unable to load servers`)
-        const data: DiscordServer[] = await res.json()
+        const res = await fetchWithTimeout(API_ENDPOINTS.SERVERS)
+        const data = await parseJsonResponse<DiscordServer[]>(res)
         if (isMounted) {
           setServers(data)
           setLoading(false)
@@ -191,15 +229,16 @@ export function App() {
         if (isMounted) {
           setLoading(false)
           const message =
-            err instanceof Error ? err.message : 'Failed to load servers'
+            err instanceof Error ? err.message : MESSAGES.SERVERS_FETCH_ERROR
           const now = Date.now()
-          // For background polling, throttle error toast notifications to once per 8 seconds
+          // For background polling, throttle error toast notifications
           if (
             !isBackground ||
-            now - lastBackgroundErrorToastRef.current > 8000
+            now - lastBackgroundErrorToastRef.current >
+              TIMING.BACKGROUND_ERROR_THROTTLE_MS
           ) {
             lastBackgroundErrorToastRef.current = now
-            addToast(message, 'error', 'Server Connection Error')
+            addToast(message, 'error', TOAST_DEFAULT_TITLES.error)
           }
         }
       } finally {
@@ -214,10 +253,10 @@ export function App() {
 
     void init()
 
-    // Background poll every 3.5s so when bot joins/leaves, UI updates immediately
+    // Background poll so when bot joins/leaves, UI updates immediately
     const pollInterval = setInterval(() => {
       loadServers(false, true)
-    }, 3500)
+    }, TIMING.POLL_INTERVAL_NORMAL_MS)
 
     // Refetch when returning to the tab (e.g. after Discord OAuth flow)
     const handleFocus = () => loadServers(false, false)
@@ -235,43 +274,34 @@ export function App() {
     if (!manualGuildId || !manualName) return
 
     try {
-      const res = await fetchWithTimeout(
-        '/api/discord/servers',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            guildId: manualGuildId,
-            name: manualName,
-            memberCount: Number(manualMemberCount),
-          }),
-        },
-        3500,
-      )
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(
-          errData.error || `Failed to register server (HTTP ${res.status})`,
-        )
-      }
+      const res = await fetchWithTimeout(API_ENDPOINTS.SERVERS, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guildId: manualGuildId,
+          name: manualName,
+          memberCount: Number(manualMemberCount),
+        }),
+      })
+      await parseJsonResponse<{ id: string; status: string }>(res)
       setShowModal(false)
       setManualGuildId('')
       setManualName('')
       addToast(
-        `Server "${manualName}" registered successfully!`,
+        MESSAGES.SERVER_REGISTER_SUCCESS(manualName),
         'success',
-        'Server Registered',
+        TOAST_DEFAULT_TITLES.success,
       )
       fetchServers(false)
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : 'Failed to register server'
-      addToast(message, 'error', 'Registration Error')
+        err instanceof Error ? err.message : MESSAGES.SERVER_REGISTER_ERROR
+      addToast(message, 'error', TOAST_DEFAULT_TITLES.error)
     }
   }
 
   const handleDeleteServer = async (id: string) => {
-    if (!confirm('Are you sure you want to remove this Discord server?')) return
+    if (!confirm(MESSAGES.SERVER_DELETE_CONFIRM)) return
 
     // Optimistically update card UI immediately
     setServers((prev) =>
@@ -279,28 +309,19 @@ export function App() {
     )
 
     try {
-      const res = await fetchWithTimeout(
-        `/api/discord/servers/${id}`,
-        {
-          method: 'DELETE',
-        },
-        3500,
-      )
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        throw new Error(
-          errData.error || `Failed to remove server (HTTP ${res.status})`,
-        )
-      }
+      const res = await fetchWithTimeout(API_ENDPOINTS.DELETE_SERVER(id), {
+        method: 'DELETE',
+      })
+      await parseJsonResponse<{ status: string }>(res)
       addToast(
-        'Discord server removed from CRM registry.',
+        MESSAGES.SERVER_REMOVE_SUCCESS,
         'info',
-        'Server Removed',
+        TOAST_DEFAULT_TITLES.info,
       )
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : 'Failed to remove server'
-      addToast(message, 'error', 'Deletion Error')
+        err instanceof Error ? err.message : MESSAGES.SERVER_REMOVE_ERROR
+      addToast(message, 'error', TOAST_DEFAULT_TITLES.error)
     }
   }
 
@@ -311,13 +332,13 @@ export function App() {
         <div
           className="brand-logo"
           style={{ cursor: 'pointer' }}
-          onClick={() => navigate('/')}
+          onClick={() => navigate(APP_ROUTES.HOME)}
         >
-          <div className="brand-icon">A</div>
+          <div className="brand-icon">{UI_TEXT.BRAND.INITIAL}</div>
           <div>
-            <div className="brand-title">Angora CRM</div>
+            <div className="brand-title">{UI_TEXT.BRAND.NAME}</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Self-Hosted CRM & Integration Stack
+              {UI_TEXT.BRAND.SUBTITLE}
             </div>
           </div>
         </div>
@@ -325,16 +346,16 @@ export function App() {
         {/* Global Navigation Links */}
         <nav className="top-nav">
           <button
-            className={`nav-link ${currentPath === '/' ? 'active' : ''}`}
-            onClick={() => navigate('/')}
+            className={`nav-link ${currentPath === APP_ROUTES.HOME ? 'active' : ''}`}
+            onClick={() => navigate(APP_ROUTES.HOME)}
           >
-            🏠 Home
+            {UI_TEXT.NAV.HOME}
           </button>
           <button
-            className={`nav-link nav-btn-discord ${currentPath === '/discordbot' ? 'active' : ''}`}
-            onClick={() => navigate('/discordbot')}
+            className={`nav-link nav-btn-discord ${currentPath === APP_ROUTES.DISCORD_BOT ? 'active' : ''}`}
+            onClick={() => navigate(APP_ROUTES.DISCORD_BOT)}
           >
-            🎮 Discord Bot
+            {UI_TEXT.NAV.DISCORD}
           </button>
         </nav>
       </header>
@@ -342,32 +363,26 @@ export function App() {
       {/* ======================================================== */}
       {/* ROUTE 1: LANDING PAGE ( / )                              */}
       {/* ======================================================== */}
-      {currentPath === '/' && (
+      {currentPath === APP_ROUTES.HOME && (
         <main>
           {/* Hero Section */}
           <section className="hero-section">
-            <div className="hero-badge">✨ Self-Hosted CRM Platform v1.0</div>
-            <h1 className="hero-title">
-              Manage Support Channels & Discord Integrations Seamlessly
-            </h1>
-            <p className="hero-subtitle">
-              Angora is a modern self-hosted customer support CRM system with
-              native integrations for Discord servers, Slack channels, and email
-              automated workflows.
-            </p>
+            <div className="hero-badge">{UI_TEXT.HERO.BADGE}</div>
+            <h1 className="hero-title">{UI_TEXT.HERO.TITLE}</h1>
+            <p className="hero-subtitle">{UI_TEXT.HERO.SUBTITLE}</p>
             <div className="hero-cta-group">
               <button
                 className="btn btn-discord"
                 style={{ padding: '0.85rem 1.75rem', fontSize: '1rem' }}
-                onClick={() => navigate('/discordbot')}
+                onClick={() => navigate(APP_ROUTES.DISCORD_BOT)}
               >
-                🎮 Open Discord Manager (/discordbot) →
+                {UI_TEXT.HERO.CTA_PRIMARY}
               </button>
               <button
                 className="btn btn-secondary"
                 onClick={() => fetchServers(true)}
               >
-                🔄 Sync System State
+                {UI_TEXT.HERO.CTA_SECONDARY}
               </button>
             </div>
           </section>
@@ -375,10 +390,9 @@ export function App() {
           {/* Features Overview Section */}
           <section className="features-section">
             <div className="section-header">
-              <h2 className="section-title">Integrated Apps & Modules</h2>
+              <h2 className="section-title">{UI_TEXT.MODULES.SECTION_TITLE}</h2>
               <p className="section-subtitle">
-                Click any module to manage its gateway connection and live
-                status
+                {UI_TEXT.MODULES.SECTION_SUBTITLE}
               </p>
             </div>
 
@@ -395,19 +409,19 @@ export function App() {
                       <span className="status-dot"></span> Active
                     </span>
                   </div>
-                  <h3 className="feature-title">Discord Bot Integration</h3>
+                  <h3 className="feature-title">
+                    {UI_TEXT.MODULES.DISCORD_CARD_TITLE}
+                  </h3>
                   <p className="feature-desc">
-                    View active Discord servers, manage bot OAuth invitation
-                    links, track member stats, and execute slash commands
-                    (/ping).
+                    {UI_TEXT.MODULES.DISCORD_CARD_DESC}
                   </p>
                 </div>
                 <button
                   className="btn btn-discord"
                   style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => navigate('/discordbot')}
+                  onClick={() => navigate(APP_ROUTES.DISCORD_BOT)}
                 >
-                  Launch Discord Manager →
+                  {UI_TEXT.MODULES.DISCORD_CARD_BTN}
                 </button>
               </div>
 
@@ -420,11 +434,11 @@ export function App() {
                       <span className="status-dot"></span> Configured
                     </span>
                   </div>
-                  <h3 className="feature-title">Slack Workspace Bot</h3>
+                  <h3 className="feature-title">
+                    {UI_TEXT.MODULES.SLACK_CARD_TITLE}
+                  </h3>
                   <p className="feature-desc">
-                    Connect support agents with customer support channels,
-                    receive ticket updates, and automate workspace
-                    notifications.
+                    {UI_TEXT.MODULES.SLACK_CARD_DESC}
                   </p>
                 </div>
                 <button
@@ -432,7 +446,7 @@ export function App() {
                   disabled
                   style={{ opacity: 0.7 }}
                 >
-                  Slack Engine Ready
+                  {UI_TEXT.MODULES.SLACK_CARD_BTN}
                 </button>
               </div>
 
@@ -445,10 +459,11 @@ export function App() {
                       <span className="status-dot"></span> Configured
                     </span>
                   </div>
-                  <h3 className="feature-title">Email Ticket System</h3>
+                  <h3 className="feature-title">
+                    {UI_TEXT.MODULES.EMAIL_CARD_TITLE}
+                  </h3>
                   <p className="feature-desc">
-                    Inbound IMAP/SMTP message listener for automatic ticket
-                    generation, response dispatching, and conversation logs.
+                    {UI_TEXT.MODULES.EMAIL_CARD_DESC}
                   </p>
                 </div>
                 <button
@@ -456,7 +471,7 @@ export function App() {
                   disabled
                   style={{ opacity: 0.7 }}
                 >
-                  Email Engine Ready
+                  {UI_TEXT.MODULES.EMAIL_CARD_BTN}
                 </button>
               </div>
 
@@ -469,17 +484,16 @@ export function App() {
                       <span className="status-dot"></span> Connected
                     </span>
                   </div>
-                  <h3 className="feature-title">PostgreSQL Database</h3>
-                  <p className="feature-desc">
-                    KTor 3.5.1 Exposed ORM engine powered by PostgreSQL 18 with
-                    Flyway automated migrations.
-                  </p>
+                  <h3 className="feature-title">
+                    {UI_TEXT.MODULES.DB_CARD_TITLE}
+                  </h3>
+                  <p className="feature-desc">{UI_TEXT.MODULES.DB_CARD_DESC}</p>
                 </div>
                 <button
                   className="btn btn-secondary"
-                  onClick={() => navigate('/discordbot')}
+                  onClick={() => navigate(APP_ROUTES.DISCORD_BOT)}
                 >
-                  View Connected Records
+                  {UI_TEXT.MODULES.DB_CARD_BTN}
                 </button>
               </div>
             </div>
@@ -490,51 +504,52 @@ export function App() {
       {/* ======================================================== */}
       {/* ROUTE 2: DISCORD BOT PAGE ( /discordbot )                */}
       {/* ======================================================== */}
-      {currentPath === '/discordbot' && (
+      {currentPath === APP_ROUTES.DISCORD_BOT && (
         <main>
           {/* Breadcrumbs Navigation Bar */}
           <div className="breadcrumb-bar">
-            <span className="breadcrumb-item" onClick={() => navigate('/')}>
-              🏠 Overview
+            <span
+              className="breadcrumb-item"
+              onClick={() => navigate(APP_ROUTES.HOME)}
+            >
+              {UI_TEXT.DISCORD_MANAGER.BREADCRUMB_OVERVIEW}
             </span>
             <span>/</span>
             <span className="breadcrumb-active">
-              🎮 Discord Bot Manager (/discordbot)
+              {UI_TEXT.DISCORD_MANAGER.BREADCRUMB_DISCORD}
             </span>
           </div>
 
           {/* Action Bar */}
           <div className="action-bar">
             <div>
-              <h1 className="page-title">Discord Server Integration</h1>
+              <h1 className="page-title">{UI_TEXT.DISCORD_MANAGER.TITLE}</h1>
               <p className="page-subtitle">
-                Manage connected Discord servers, invite Angora Bot, and view
-                slash commands.
+                {UI_TEXT.DISCORD_MANAGER.SUBTITLE}
               </p>
             </div>
             <div className="btn-group">
               <button
                 className="btn btn-secondary"
-                onClick={() => navigate('/')}
+                onClick={() => navigate(APP_ROUTES.HOME)}
               >
-                ← Back to Home
+                {UI_TEXT.DISCORD_MANAGER.BTN_BACK_HOME}
               </button>
               <button
                 className="btn btn-secondary"
                 onClick={() => fetchServers(true)}
               >
-                🔄 Sync Data
+                {UI_TEXT.DISCORD_MANAGER.BTN_SYNC_DATA}
               </button>
               <a
                 href={
-                  inviteData?.inviteUrl ||
-                  'https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot+applications.commands&permissions=8'
+                  inviteData?.inviteUrl || API_ENDPOINTS.FALLBACK_INVITE_URL
                 }
                 target="_blank"
                 rel="noreferrer"
                 className="btn btn-discord"
               >
-                🤖 Add Bot to Server (OAuth)
+                {UI_TEXT.DISCORD_MANAGER.BTN_ADD_BOT_OAUTH}
               </a>
               <button
                 className="btn btn-secondary"
@@ -543,7 +558,7 @@ export function App() {
                   setShowModal(true)
                 }}
               >
-                ➕ Register Server
+                {UI_TEXT.DISCORD_MANAGER.BTN_REGISTER_SERVER}
               </button>
             </div>
           </div>
@@ -551,40 +566,40 @@ export function App() {
           {/* Discord Navigation Sub-tabs */}
           <nav className="nav-tabs">
             <button
-              className={`tab-btn ${activeTab === 'discord' ? 'active' : ''}`}
-              onClick={() => setActiveTab('discord')}
+              className={`tab-btn ${activeTab === DISCORD_TABS.DISCORD ? 'active' : ''}`}
+              onClick={() => setActiveTab(DISCORD_TABS.DISCORD)}
             >
-              🎮 Connected Servers ({servers.length})
+              {UI_TEXT.DISCORD_MANAGER.TAB_SERVERS_LABEL(servers.length)}
             </button>
             <button
-              className={`tab-btn ${activeTab === 'commands' ? 'active' : ''}`}
-              onClick={() => setActiveTab('commands')}
+              className={`tab-btn ${activeTab === DISCORD_TABS.COMMANDS ? 'active' : ''}`}
+              onClick={() => setActiveTab(DISCORD_TABS.COMMANDS)}
             >
-              ⚡ Bot Slash Commands
+              {UI_TEXT.DISCORD_MANAGER.TAB_COMMANDS_LABEL}
             </button>
             <button
-              className={`tab-btn ${activeTab === 'health' ? 'active' : ''}`}
-              onClick={() => setActiveTab('health')}
+              className={`tab-btn ${activeTab === DISCORD_TABS.HEALTH ? 'active' : ''}`}
+              onClick={() => setActiveTab(DISCORD_TABS.HEALTH)}
             >
-              💚 Backend Health
+              {UI_TEXT.DISCORD_MANAGER.TAB_HEALTH_LABEL}
             </button>
           </nav>
 
           {/* SUB-TAB 1: CONNECTED SERVERS */}
-          {activeTab === 'discord' && (
+          {activeTab === DISCORD_TABS.DISCORD && (
             <div>
               {loading && (
                 <p
                   style={{ color: 'var(--text-secondary)', padding: '1rem 0' }}
                 >
-                  Loading connected servers...
+                  {UI_TEXT.DISCORD_MANAGER.LOADING_SERVERS}
                 </p>
               )}
 
               {!loading && servers.length === 0 && (
                 <div className="empty-state">
                   <div className="empty-icon">🤖</div>
-                  <h3>No Discord Servers Connected</h3>
+                  <h3>{UI_TEXT.DISCORD_MANAGER.EMPTY_TITLE}</h3>
                   <p
                     style={{
                       color: 'var(--text-secondary)',
@@ -592,19 +607,17 @@ export function App() {
                       marginTop: '0.5rem',
                     }}
                   >
-                    Invite the bot to your Discord server or list a server
-                    manually to get started.
+                    {UI_TEXT.DISCORD_MANAGER.EMPTY_DESC}
                   </p>
                   <a
                     href={
-                      inviteData?.inviteUrl ||
-                      'https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot+applications.commands&permissions=8'
+                      inviteData?.inviteUrl || API_ENDPOINTS.FALLBACK_INVITE_URL
                     }
                     target="_blank"
                     rel="noreferrer"
                     className="btn btn-discord"
                   >
-                    🤖 Invite Bot to Discord Server (OAuth)
+                    {UI_TEXT.DISCORD_MANAGER.EMPTY_BTN}
                   </a>
                 </div>
               )}
@@ -642,8 +655,8 @@ export function App() {
                       >
                         <span className="status-dot"></span>
                         {server.botJoined !== false
-                          ? 'Bot Connected'
-                          : 'Bot Left'}
+                          ? UI_TEXT.DISCORD_MANAGER.CARD_BOT_CONNECTED
+                          : UI_TEXT.DISCORD_MANAGER.CARD_BOT_LEFT}
                       </span>
 
                       {server.botJoined !== false ? (
@@ -651,19 +664,19 @@ export function App() {
                           className="btn btn-danger"
                           onClick={() => handleDeleteServer(server.id)}
                         >
-                          Remove
+                          {UI_TEXT.DISCORD_MANAGER.CARD_BTN_REMOVE}
                         </button>
                       ) : (
                         <a
                           href={
                             inviteData?.inviteUrl ||
-                            'https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot+applications.commands&permissions=8'
+                            API_ENDPOINTS.FALLBACK_INVITE_URL
                           }
                           target="_blank"
                           rel="noreferrer"
                           className="btn btn-primary"
                         >
-                          🔄 Reconnect
+                          {UI_TEXT.DISCORD_MANAGER.CARD_BTN_RECONNECT}
                         </a>
                       )}
                     </div>
@@ -674,34 +687,40 @@ export function App() {
           )}
 
           {/* SUB-TAB 2: SLASH COMMANDS */}
-          {activeTab === 'commands' && (
+          {activeTab === DISCORD_TABS.COMMANDS && (
             <div>
               <div className="card" style={{ marginBottom: '2rem' }}>
                 <h3 style={{ marginBottom: '1rem', color: '#a5b4fc' }}>
-                  Command Registry Overview
+                  {UI_TEXT.DISCORD_MANAGER.COMMANDS_TITLE}
                 </h3>
                 <div className="command-list">
                   <div className="command-item">
                     <div>
-                      <div className="command-name">/ping</div>
+                      <div className="command-name">
+                        {UI_TEXT.DISCORD_MANAGER.COMMAND_PING_NAME}
+                      </div>
                       <div className="command-desc">
-                        Checks bot WebSocket latency & API roundtrip latency
+                        {UI_TEXT.DISCORD_MANAGER.COMMAND_PING_DESC}
                       </div>
                     </div>
-                    <span className="status-badge active">Registered</span>
+                    <span className="status-badge active">
+                      {UI_TEXT.DISCORD_MANAGER.COMMAND_PING_STATUS}
+                    </span>
                   </div>
                   <div
                     className="command-item"
                     style={{ opacity: 0.6, borderStyle: 'dashed' }}
                   >
                     <div>
-                      <div className="command-name">/angora (Dedicated)</div>
+                      <div className="command-name">
+                        {UI_TEXT.DISCORD_MANAGER.COMMAND_DEDICATED_NAME}
+                      </div>
                       <div className="command-desc">
-                        Placeholder slot ready for custom dedicated commands
+                        {UI_TEXT.DISCORD_MANAGER.COMMAND_DEDICATED_DESC}
                       </div>
                     </div>
                     <span className="status-badge inactive">
-                      Ready for implementation
+                      {UI_TEXT.DISCORD_MANAGER.COMMAND_DEDICATED_STATUS}
                     </span>
                   </div>
                 </div>
@@ -710,7 +729,7 @@ export function App() {
           )}
 
           {/* SUB-TAB 3: BACKEND HEALTH & TOAST PLAYGROUND */}
-          {activeTab === 'health' && (
+          {activeTab === DISCORD_TABS.HEALTH && (
             <div
               style={{
                 display: 'flex',
@@ -721,7 +740,7 @@ export function App() {
               {/* Interactive Toast Tester */}
               <div className="card">
                 <h3 style={{ marginBottom: '0.5rem', color: '#a5b4fc' }}>
-                  🔔 Interactive Toast & Alert Playground
+                  {UI_TEXT.DISCORD_MANAGER.PLAYGROUND_TITLE}
                 </h3>
                 <p
                   style={{
@@ -731,9 +750,7 @@ export function App() {
                     lineHeight: 1.5,
                   }}
                 >
-                  Click any button below to preview how errors, warnings,
-                  successes, and telemetry alerts display with auto-dismiss
-                  timers and custom styling:
+                  {UI_TEXT.DISCORD_MANAGER.PLAYGROUND_DESC}
                 </p>
                 <div
                   style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}
@@ -742,25 +759,25 @@ export function App() {
                     className="btn btn-danger"
                     onClick={() =>
                       addToast(
-                        'Database connection timed out while querying discord_servers (Error 504 Gateway Timeout).',
+                        MESSAGES.SIMULATED_ERROR,
                         'error',
-                        'Database Connection Error',
+                        TOAST_DEFAULT_TITLES.error,
                       )
                     }
                   >
-                    ⚠️ Trigger Error Toast
+                    {UI_TEXT.DISCORD_MANAGER.PLAYGROUND_BTN_ERROR}
                   </button>
                   <button
                     className="btn btn-discord"
                     onClick={() =>
                       addToast(
-                        'Discord OAuth payload verified and guild synced with Exposed ORM.',
+                        MESSAGES.SIMULATED_SUCCESS,
                         'success',
-                        'Synchronization Succeeded',
+                        TOAST_DEFAULT_TITLES.success,
                       )
                     }
                   >
-                    ✅ Trigger Success Toast
+                    {UI_TEXT.DISCORD_MANAGER.PLAYGROUND_BTN_SUCCESS}
                   </button>
                   <button
                     className="btn btn-secondary"
@@ -770,25 +787,25 @@ export function App() {
                     }}
                     onClick={() =>
                       addToast(
-                        'DISCORD_CLIENT_ID not configured in .env. Bot invite link will use fallback.',
+                        MESSAGES.SIMULATED_WARNING,
                         'warning',
-                        'Configuration Warning',
+                        TOAST_DEFAULT_TITLES.warning,
                       )
                     }
                   >
-                    ⚡ Trigger Warning Toast
+                    {UI_TEXT.DISCORD_MANAGER.PLAYGROUND_BTN_WARNING}
                   </button>
                   <button
                     className="btn btn-secondary"
                     onClick={() =>
                       addToast(
-                        'Polling cycle completed: all 2 active Discord guilds are healthy.',
+                        MESSAGES.SIMULATED_INFO,
                         'info',
-                        'Gateway Telemetry Info',
+                        TOAST_DEFAULT_TITLES.info,
                       )
                     }
                   >
-                    ℹ️ Trigger Info Toast
+                    {UI_TEXT.DISCORD_MANAGER.PLAYGROUND_BTN_INFO}
                   </button>
                 </div>
               </div>
@@ -796,7 +813,7 @@ export function App() {
               {/* OAuth Invite Data Card */}
               <div className="card">
                 <h3 style={{ marginBottom: '0.5rem' }}>
-                  Discord OAuth Invite Link Data
+                  {UI_TEXT.DISCORD_MANAGER.OAUTH_DATA_TITLE}
                 </h3>
                 <pre
                   style={{
@@ -820,9 +837,7 @@ export function App() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ marginBottom: '1rem' }}>
-              List / Register Discord Server
-            </h2>
+            <h2 style={{ marginBottom: '1rem' }}>{UI_TEXT.MODAL.TITLE}</h2>
             <p
               style={{
                 color: 'var(--text-secondary)',
@@ -830,33 +845,37 @@ export function App() {
                 marginBottom: '1.5rem',
               }}
             >
-              Add a server record manually to register it in your CRM system.
+              {UI_TEXT.MODAL.SUBTITLE}
             </p>
             <form onSubmit={handleRegisterServer}>
               <div className="form-group">
-                <label className="form-label">Discord Server (Guild) ID</label>
+                <label className="form-label">
+                  {UI_TEXT.MODAL.LABEL_GUILD_ID}
+                </label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="e.g. 102938475665748392"
+                  placeholder={UI_TEXT.MODAL.PLACEHOLDER_GUILD_ID}
                   value={manualGuildId}
                   onChange={(e) => setManualGuildId(e.target.value)}
                   required
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Server Name</label>
+                <label className="form-label">{UI_TEXT.MODAL.LABEL_NAME}</label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="e.g. My Community Server"
+                  placeholder={UI_TEXT.MODAL.PLACEHOLDER_NAME}
                   value={manualName}
                   onChange={(e) => setManualName(e.target.value)}
                   required
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Member Count</label>
+                <label className="form-label">
+                  {UI_TEXT.MODAL.LABEL_MEMBER_COUNT}
+                </label>
                 <input
                   type="number"
                   className="form-input"
@@ -873,10 +892,10 @@ export function App() {
                   className="btn btn-secondary"
                   onClick={() => setShowModal(false)}
                 >
-                  Cancel
+                  {UI_TEXT.MODAL.BTN_CANCEL}
                 </button>
                 <button type="submit" className="btn btn-discord">
-                  Save Server
+                  {UI_TEXT.MODAL.BTN_SUBMIT}
                 </button>
               </div>
             </form>

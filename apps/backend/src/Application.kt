@@ -18,9 +18,9 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
-    val dbUrl = environment.config.property("database.url").getString()
-    val dbUser = environment.config.property("database.user").getString()
-    val dbPassword = environment.config.property("database.password").getString()
+    val dbUrl = environment.config.property(BackendConstants.Config.DB_URL_PROPERTY).getString()
+    val dbUser = environment.config.property(BackendConstants.Config.DB_USER_PROPERTY).getString()
+    val dbPassword = environment.config.property(BackendConstants.Config.DB_PASSWORD_PROPERTY).getString()
 
     Flyway.configure()
         .dataSource(dbUrl, dbUser, dbPassword)
@@ -29,7 +29,7 @@ fun Application.module() {
 
     val database = Database.connect(
         url = dbUrl,
-        driver = "org.postgresql.Driver",
+        driver = BackendConstants.Config.POSTGRES_DRIVER,
         user = dbUser,
         password = dbPassword
     )
@@ -53,19 +53,26 @@ fun Application.module() {
         })
     }
 
-    val discordClientId = System.getenv("DISCORD_CLIENT_ID")?.takeIf { it.isNotBlank() }
+    val discordClientId = System.getenv(BackendConstants.Config.ENV_DISCORD_CLIENT_ID)?.takeIf { it.isNotBlank() }
     if (discordClientId == null) {
-        log.warn("DISCORD_CLIENT_ID environment variable is not set.")
+        log.warn(BackendConstants.Messages.WARN_DISCORD_CLIENT_ID_NOT_SET)
     }
 
     routing {
-        get("/api/health") {
+        get(BackendConstants.Routes.HEALTH) {
             val healthStatus = try {
                 transaction(database) {
-                    mapOf("status" to "ok", "database" to "connected")
+                    mapOf(
+                        BackendConstants.Responses.KEY_STATUS to BackendConstants.Responses.STATUS_OK,
+                        BackendConstants.Responses.KEY_DATABASE to BackendConstants.Responses.STATUS_CONNECTED
+                    )
                 }
             } catch (e: Exception) {
-                mapOf("status" to "ok", "database" to "disconnected", "error" to e.message)
+                mapOf(
+                    BackendConstants.Responses.KEY_STATUS to BackendConstants.Responses.STATUS_OK,
+                    BackendConstants.Responses.KEY_DATABASE to BackendConstants.Responses.STATUS_DISCONNECTED,
+                    BackendConstants.Responses.KEY_ERROR to e.message
+                )
             }
             call.respond(healthStatus)
         }

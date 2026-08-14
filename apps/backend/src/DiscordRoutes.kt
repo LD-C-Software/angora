@@ -51,8 +51,8 @@ data class DeleteServerResponse(
 )
 
 fun Route.discordRoutes(database: Database, clientId: String?) {
-    route("/api/discord") {
-        get("/servers") {
+    route(BackendConstants.Routes.DISCORD_BASE) {
+        get(BackendConstants.Routes.DISCORD_SERVERS) {
             val servers = transaction(database) {
                 DiscordServers.selectAll()
                     .orderBy(DiscordServers.createdAt to SortOrder.DESC)
@@ -73,7 +73,7 @@ fun Route.discordRoutes(database: Database, clientId: String?) {
             call.respond(servers)
         }
 
-        post("/servers") {
+        post(BackendConstants.Routes.DISCORD_SERVERS) {
             val req = call.receive<ManualServerRequest>()
             val now = Instant.now()
             val createdId = transaction(database) {
@@ -102,13 +102,22 @@ fun Route.discordRoutes(database: Database, clientId: String?) {
                     }[DiscordServers.id].value.toString()
                 }
             }
-            call.respond(HttpStatusCode.Created, mapOf("id" to createdId, "status" to "registered"))
+            call.respond(
+                HttpStatusCode.Created,
+                mapOf(
+                    BackendConstants.Responses.KEY_ID to createdId,
+                    BackendConstants.Responses.KEY_STATUS to BackendConstants.Responses.STATUS_REGISTERED
+                )
+            )
         }
 
-        delete("/servers/{id}") {
+        delete(BackendConstants.Routes.DISCORD_SERVERS_ID) {
             val idParam = call.parameters["id"]
             if (idParam == null) {
-                call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Missing server id"))
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    mapOf(BackendConstants.Responses.KEY_ERROR to BackendConstants.Messages.ERROR_MISSING_SERVER_ID)
+                )
                 return@delete
             }
 
@@ -135,24 +144,35 @@ fun Route.discordRoutes(database: Database, clientId: String?) {
             if (updatedCount > 0) {
                 if (targetGuildId != null) {
                     try {
-                        val botUrl = System.getenv("DISCORD_BOT_URL") ?: "http://discord-bot:3001"
+                        val botUrl = System.getenv(BackendConstants.Config.ENV_DISCORD_BOT_URL)
+                            ?: BackendConstants.Config.DEFAULT_DISCORD_BOT_URL
                         val httpClient = java.net.http.HttpClient.newHttpClient()
                         val request = java.net.http.HttpRequest.newBuilder()
-                            .uri(java.net.URI.create("$botUrl/leave/$targetGuildId"))
+                            .uri(java.net.URI.create(BackendConstants.Routes.discordBotLeaveUrl(botUrl, targetGuildId)))
                             .POST(java.net.http.HttpRequest.BodyPublishers.noBody())
                             .build()
                         httpClient.sendAsync(request, java.net.http.HttpResponse.BodyHandlers.ofString())
                     } catch (e: Exception) {
-                        application.log.warn("Failed to notify Discord bot to leave guild $targetGuildId", e)
+                        application.log.warn(BackendConstants.Messages.warnFailedBotLeave(targetGuildId), e)
                     }
                 }
-                call.respond(HttpStatusCode.OK, DeleteServerResponse(status = "updated", guildId = targetGuildId, botJoined = false))
+                call.respond(
+                    HttpStatusCode.OK,
+                    DeleteServerResponse(
+                        status = BackendConstants.Responses.STATUS_UPDATED,
+                        guildId = targetGuildId,
+                        botJoined = false
+                    )
+                )
             } else {
-                call.respond(HttpStatusCode.NotFound, mapOf("error" to "Server not found"))
+                call.respond(
+                    HttpStatusCode.NotFound,
+                    mapOf(BackendConstants.Responses.KEY_ERROR to BackendConstants.Messages.ERROR_SERVER_NOT_FOUND)
+                )
             }
         }
 
-        post("/bot/sync") {
+        post(BackendConstants.Routes.DISCORD_BOT_SYNC) {
             val req = call.receive<SyncGuildRequest>()
             val now = Instant.now()
             transaction(database) {
@@ -182,20 +202,31 @@ fun Route.discordRoutes(database: Database, clientId: String?) {
                     }
                 }
             }
-            call.respond(HttpStatusCode.OK, mapOf("status" to "synced"))
+            call.respond(
+                HttpStatusCode.OK,
+                mapOf(BackendConstants.Responses.KEY_STATUS to BackendConstants.Responses.STATUS_SYNCED)
+            )
         }
 
-        get("/bot/invite") {
-            if (clientId.isNullOrBlank() || clientId == "YOUR_DISCORD_CLIENT_ID") {
+        get(BackendConstants.Routes.DISCORD_BOT_INVITE) {
+            if (clientId.isNullOrBlank() || clientId == BackendConstants.Config.PLACEHOLDER_DISCORD_CLIENT_ID) {
                 call.respond(
                     HttpStatusCode.BadRequest,
-                    mapOf("error" to "DISCORD_CLIENT_ID environment variable is not set. Please configure DISCORD_CLIENT_ID in your environment.", "inviteUrl" to "", "clientId" to "")
+                    mapOf(
+                        BackendConstants.Responses.KEY_ERROR to BackendConstants.Messages.ERROR_DISCORD_CLIENT_ID_NOT_SET,
+                        BackendConstants.Responses.KEY_INVITE_URL to "",
+                        BackendConstants.Responses.KEY_CLIENT_ID to ""
+                    )
                 )
                 return@get
             }
-            val permissions = "8"
-            val url = "https://discord.com/oauth2/authorize?client_id=$clientId&scope=bot+applications.commands&permissions=$permissions"
-            call.respond(mapOf("inviteUrl" to url, "clientId" to clientId))
+            val url = BackendConstants.DiscordOAuth.buildInviteUrl(clientId)
+            call.respond(
+                mapOf(
+                    BackendConstants.Responses.KEY_INVITE_URL to url,
+                    BackendConstants.Responses.KEY_CLIENT_ID to clientId
+                )
+            )
         }
     }
 }
