@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 
 interface DiscordServer {
   id: string
@@ -17,6 +17,42 @@ interface InviteData {
   clientId: string
 }
 
+export interface ToastNotification {
+  id: string
+  type: 'error' | 'success' | 'warning' | 'info'
+  title: string
+  message: string
+}
+
+/**
+ * Fetch wrapper with built-in AbortController timeout to prevent hanging pending requests
+ */
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs: number = 3500,
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    })
+    return response
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error(
+        `Request timed out after ${timeoutMs / 1000}s (Backend unreachable or paused)`,
+        { cause: err },
+      )
+    }
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 export function App() {
   // Navigation Routing State
   const [currentPath, setCurrentPath] = useState<string>(() => {
@@ -30,13 +66,52 @@ export function App() {
   const [servers, setServers] = useState<DiscordServer[]>([])
   const [inviteData, setInviteData] = useState<InviteData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [toasts, setToasts] = useState<ToastNotification[]>([])
   const [showModal, setShowModal] = useState(false)
 
   // Manual server form state
   const [manualGuildId, setManualGuildId] = useState('')
   const [manualName, setManualName] = useState('')
   const [manualMemberCount, setManualMemberCount] = useState(10)
+
+  // Polling lock and error debounce refs
+  const isPollingRef = useRef(false)
+  const lastBackgroundErrorToastRef = useRef<number>(0)
+
+  // Toast dispatch helper
+  const addToast = useCallback(
+    (
+      message: string,
+      type: 'error' | 'success' | 'warning' | 'info' = 'error',
+      title?: string,
+    ) => {
+      const id = Math.random().toString(36).substring(2, 9)
+      const defaultTitle = {
+        error: 'System Alert',
+        success: 'Operation Successful',
+        warning: 'System Warning',
+        info: 'System Information',
+      }[type]
+
+      const newToast: ToastNotification = {
+        id,
+        type,
+        title: title || defaultTitle,
+        message,
+      }
+
+      setToasts((prev) => [...prev, newToast])
+
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id))
+      }, 5000)
+    },
+    [],
+  )
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [])
 
   // Handle client-side routing
   const navigate = (path: string) => {
@@ -54,66 +129,98 @@ export function App() {
   }, [])
 
   // Fetch servers and invite link
-  const fetchServers = useCallback((showLoadingSpinner: boolean = false) => {
-    if (typeof showLoadingSpinner === 'boolean' && showLoadingSpinner) {
-      setLoading(true)
-    }
-    fetch('/api/discord/servers')
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP error ${res.status}`)
-        return res.json()
-      })
-      .then((data: DiscordServer[]) => {
+  const fetchServers = useCallback(
+    async (showLoadingSpinner: boolean = false) => {
+      if (typeof showLoadingSpinner === 'boolean' && showLoadingSpinner) {
+        setLoading(true)
+      }
+      try {
+        const res = await fetchWithTimeout('/api/discord/servers', {}, 3500)
+        if (!res.ok)
+          throw new Error(`HTTP error ${res.status}: Unable to load servers`)
+        const data: DiscordServer[] = await res.json()
         setServers(data)
         setLoading(false)
-      })
-      .catch((err) => {
-        setError(err.message)
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to load servers'
+        addToast(message, 'error', 'Server Fetch Error')
         setLoading(false)
-      })
-  }, [])
+      }
+    },
+    [addToast],
+  )
 
-  const fetchInviteLink = useCallback(() => {
-    fetch('/api/discord/bot/invite')
-      .then((res) => res.json())
-      .then((data: InviteData) => setInviteData(data))
-      .catch((err) => console.error('Failed to fetch invite URL:', err))
-  }, [])
+  const fetchInviteLink = useCallback(async () => {
+    try {
+      const res = await fetchWithTimeout('/api/discord/bot/invite', {}, 3500)
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        throw new Error(data.error || `HTTP error ${res.status}`)
+      }
+      setInviteData(data as InviteData)
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Failed to fetch Discord invite URL'
+      addToast(message, 'warning', 'Discord Configuration')
+    }
+  }, [addToast])
 
   useEffect(() => {
+    if (currentPath !== '/discordbot') return
+
     let isMounted = true
 
-    const loadServers = (showLoading = false) => {
+    const loadServers = async (showLoading = false, isBackground = false) => {
+      if (isPollingRef.current) return
+      isPollingRef.current = true
       if (showLoading) setLoading(true)
-      fetch('/api/discord/servers')
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP error ${res.status}`)
-          return res.json()
-        })
-        .then((data: DiscordServer[]) => {
-          if (isMounted) {
-            setServers(data)
-            setLoading(false)
+
+      try {
+        const res = await fetchWithTimeout('/api/discord/servers', {}, 3500)
+        if (!res.ok)
+          throw new Error(`HTTP error ${res.status}: Unable to load servers`)
+        const data: DiscordServer[] = await res.json()
+        if (isMounted) {
+          setServers(data)
+          setLoading(false)
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          setLoading(false)
+          const message =
+            err instanceof Error ? err.message : 'Failed to load servers'
+          const now = Date.now()
+          // For background polling, throttle error toast notifications to once per 8 seconds
+          if (
+            !isBackground ||
+            now - lastBackgroundErrorToastRef.current > 8000
+          ) {
+            lastBackgroundErrorToastRef.current = now
+            addToast(message, 'error', 'Server Connection Error')
           }
-        })
-        .catch((err) => {
-          if (isMounted) {
-            setError(err.message)
-            setLoading(false)
-          }
-        })
+        }
+      } finally {
+        isPollingRef.current = false
+      }
     }
 
-    loadServers(true)
-    fetchInviteLink()
+    const init = async () => {
+      await fetchInviteLink()
+      await loadServers(true, false)
+    }
 
-    // Silent background poll every 2.5s so when bot joins/leaves, UI updates immediately
+    void init()
+
+    // Background poll every 3.5s so when bot joins/leaves, UI updates immediately
     const pollInterval = setInterval(() => {
-      loadServers(false)
-    }, 2500)
+      loadServers(false, true)
+    }, 3500)
 
     // Refetch when returning to the tab (e.g. after Discord OAuth flow)
-    const handleFocus = () => loadServers(false)
+    const handleFocus = () => loadServers(false, false)
     window.addEventListener('focus', handleFocus)
 
     return () => {
@@ -121,35 +228,49 @@ export function App() {
       clearInterval(pollInterval)
       window.removeEventListener('focus', handleFocus)
     }
-  }, [fetchInviteLink])
+  }, [currentPath, fetchInviteLink, addToast])
 
-  const handleRegisterServer = (e: React.FormEvent) => {
+  const handleRegisterServer = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!manualGuildId || !manualName) return
 
-    fetch('/api/discord/servers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        guildId: manualGuildId,
-        name: manualName,
-        memberCount: Number(manualMemberCount),
-      }),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to register server')
-        return res.json()
-      })
-      .then(() => {
-        setShowModal(false)
-        setManualGuildId('')
-        setManualName('')
-        fetchServers(false)
-      })
-      .catch((err) => alert(err.message))
+    try {
+      const res = await fetchWithTimeout(
+        '/api/discord/servers',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            guildId: manualGuildId,
+            name: manualName,
+            memberCount: Number(manualMemberCount),
+          }),
+        },
+        3500,
+      )
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(
+          errData.error || `Failed to register server (HTTP ${res.status})`,
+        )
+      }
+      setShowModal(false)
+      setManualGuildId('')
+      setManualName('')
+      addToast(
+        `Server "${manualName}" registered successfully!`,
+        'success',
+        'Server Registered',
+      )
+      fetchServers(false)
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to register server'
+      addToast(message, 'error', 'Registration Error')
+    }
   }
 
-  const handleDeleteServer = (id: string) => {
+  const handleDeleteServer = async (id: string) => {
     if (!confirm('Are you sure you want to remove this Discord server?')) return
 
     // Optimistically update card UI immediately
@@ -157,15 +278,30 @@ export function App() {
       prev.map((s) => (s.id === id ? { ...s, botJoined: false } : s)),
     )
 
-    fetch(`/api/discord/servers/${id}`, {
-      method: 'DELETE',
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to remove server')
-      })
-      .catch((err) => {
-        alert(err.message)
-      })
+    try {
+      const res = await fetchWithTimeout(
+        `/api/discord/servers/${id}`,
+        {
+          method: 'DELETE',
+        },
+        3500,
+      )
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(
+          errData.error || `Failed to remove server (HTTP ${res.status})`,
+        )
+      }
+      addToast(
+        'Discord server removed from CRM registry.',
+        'info',
+        'Server Removed',
+      )
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to remove server'
+      addToast(message, 'error', 'Deletion Error')
+    }
   }
 
   return (
@@ -444,11 +580,6 @@ export function App() {
                   Loading connected servers...
                 </p>
               )}
-              {error && (
-                <p style={{ color: 'var(--danger)', padding: '1rem 0' }}>
-                  Error loading servers: {error}
-                </p>
-              )}
 
               {!loading && servers.length === 0 && (
                 <div className="empty-state">
@@ -578,9 +709,91 @@ export function App() {
             </div>
           )}
 
-          {/* SUB-TAB 3: BACKEND HEALTH */}
+          {/* SUB-TAB 3: BACKEND HEALTH & TOAST PLAYGROUND */}
           {activeTab === 'health' && (
-            <div>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1.5rem',
+              }}
+            >
+              {/* Interactive Toast Tester */}
+              <div className="card">
+                <h3 style={{ marginBottom: '0.5rem', color: '#a5b4fc' }}>
+                  🔔 Interactive Toast & Alert Playground
+                </h3>
+                <p
+                  style={{
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.85rem',
+                    marginBottom: '1.25rem',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Click any button below to preview how errors, warnings,
+                  successes, and telemetry alerts display with auto-dismiss
+                  timers and custom styling:
+                </p>
+                <div
+                  style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}
+                >
+                  <button
+                    className="btn btn-danger"
+                    onClick={() =>
+                      addToast(
+                        'Database connection timed out while querying discord_servers (Error 504 Gateway Timeout).',
+                        'error',
+                        'Database Connection Error',
+                      )
+                    }
+                  >
+                    ⚠️ Trigger Error Toast
+                  </button>
+                  <button
+                    className="btn btn-discord"
+                    onClick={() =>
+                      addToast(
+                        'Discord OAuth payload verified and guild synced with Exposed ORM.',
+                        'success',
+                        'Synchronization Succeeded',
+                      )
+                    }
+                  >
+                    ✅ Trigger Success Toast
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    style={{
+                      borderColor: 'rgba(245, 158, 11, 0.5)',
+                      color: '#fbbf24',
+                    }}
+                    onClick={() =>
+                      addToast(
+                        'DISCORD_CLIENT_ID not configured in .env. Bot invite link will use fallback.',
+                        'warning',
+                        'Configuration Warning',
+                      )
+                    }
+                  >
+                    ⚡ Trigger Warning Toast
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() =>
+                      addToast(
+                        'Polling cycle completed: all 2 active Discord guilds are healthy.',
+                        'info',
+                        'Gateway Telemetry Info',
+                      )
+                    }
+                  >
+                    ℹ️ Trigger Info Toast
+                  </button>
+                </div>
+              </div>
+
+              {/* OAuth Invite Data Card */}
               <div className="card">
                 <h3 style={{ marginBottom: '0.5rem' }}>
                   Discord OAuth Invite Link Data
@@ -670,6 +883,36 @@ export function App() {
           </div>
         </div>
       )}
+
+      {/* GLOBAL TOAST NOTIFICATIONS */}
+      <div className="toast-container" aria-live="polite">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`toast-item toast-${toast.type}`}
+            role="alert"
+          >
+            <div className="toast-icon">
+              {toast.type === 'error' && '⚠️'}
+              {toast.type === 'success' && '✅'}
+              {toast.type === 'warning' && '⚡'}
+              {toast.type === 'info' && 'ℹ️'}
+            </div>
+            <div className="toast-body">
+              <div className="toast-title">{toast.title}</div>
+              <div className="toast-message">{toast.message}</div>
+            </div>
+            <button
+              className="toast-close-btn"
+              onClick={() => removeToast(toast.id)}
+              aria-label="Dismiss notification"
+            >
+              ✕
+            </button>
+            <div className="toast-progress-bar" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

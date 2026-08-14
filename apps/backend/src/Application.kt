@@ -53,7 +53,10 @@ fun Application.module() {
         })
     }
 
-    val discordClientId = System.getenv("DISCORD_CLIENT_ID") ?: "123456789012345678"
+    val discordClientId = System.getenv("DISCORD_CLIENT_ID")?.takeIf { it.isNotBlank() }
+    if (discordClientId == null) {
+        log.warn("DISCORD_CLIENT_ID environment variable is not set.")
+    }
 
     routing {
         get("/api/health") {

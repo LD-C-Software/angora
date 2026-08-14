@@ -35,7 +35,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-angora}
       DB_USER: ${POSTGRES_USER:-angora}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-angora}
-      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-123456789012345678}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,7 +81,7 @@ services:
       - '3001:3001'
     environment:
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-YOUR_DISCORD_BOT_TOKEN}
-      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-123456789012345678}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
       BACKEND_URL: http://backend:8080
     depends_on:
       - backend

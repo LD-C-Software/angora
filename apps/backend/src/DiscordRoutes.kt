@@ -50,7 +50,7 @@ data class DeleteServerResponse(
     val botJoined: Boolean = false
 )
 
-fun Route.discordRoutes(database: Database, clientId: String) {
+fun Route.discordRoutes(database: Database, clientId: String?) {
     route("/api/discord") {
         get("/servers") {
             val servers = transaction(database) {
@@ -186,6 +186,13 @@ fun Route.discordRoutes(database: Database, clientId: String) {
         }
 
         get("/bot/invite") {
+            if (clientId.isNullOrBlank() || clientId == "YOUR_DISCORD_CLIENT_ID") {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    mapOf("error" to "DISCORD_CLIENT_ID environment variable is not set. Please configure DISCORD_CLIENT_ID in your environment.", "inviteUrl" to "", "clientId" to "")
+                )
+                return@get
+            }
             val permissions = "8"
             val url = "https://discord.com/oauth2/authorize?client_id=$clientId&scope=bot+applications.commands&permissions=$permissions"
             call.respond(mapOf("inviteUrl" to url, "clientId" to clientId))
