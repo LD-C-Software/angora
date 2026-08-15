@@ -1,0 +1,7 @@
+# Default owners for everything in the repo.
+* @Chogster @buraksal
+
+# Extra-sensitive paths: CI/CD, containers, and licensing.
+/.github/ @Chogster @buraksal
+/docker-compose.yml @Chogster @buraksal
+/LICENSE @Chogster @buraksal
