@@ -63,3 +63,15 @@ object Contacts : UUIDTable("contacts") {
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 }
+
+object DiscordServers : UUIDTable("discord_servers") {
+    val guildId = varchar("guild_id", 64).uniqueIndex()
+    val name = varchar("name", 255)
+    val iconUrl = varchar("icon_url", 512).nullable()
+    val ownerId = varchar("owner_id", 64).nullable()
+    val memberCount = integer("member_count").default(0)
+    val botJoined = bool("bot_joined").default(true)
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+}
+

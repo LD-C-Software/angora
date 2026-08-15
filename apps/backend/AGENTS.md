@@ -12,7 +12,11 @@ Scoped to `apps/backend/`. See the [root AGENTS.md](../../AGENTS.md) for repo-wi
 
 ## Allowed changes
 
-- `src/Application.kt` — KTor routes and business logic
+- `src/routes/` — KTor route definitions (API layer: handles HTTP request/response and calls service layer only)
+- `src/service/` — Business logic and orchestration (Service layer: calls repository layer for data operations)
+- `src/repository/` — Exposed ORM data access (Repository layer: handles database transactions and queries)
+- `src/dto/` — Request/response DTOs and models
+- `src/Application.kt` — KTor plugins, dependency wiring, and route mounting
 - `src/Tables.kt` — Exposed `Table`/`UUIDTable` definitions, kept in sync with `src/main/resources/db/migration/`
 - `src/main/resources/application.yaml` — Ktor deployment config and database connection settings
 - `src/main/resources/db/migration/` — Flyway SQL migrations
@@ -22,6 +26,7 @@ Scoped to `apps/backend/`. See the [root AGENTS.md](../../AGENTS.md) for repo-wi
 ## Forbidden changes
 
 - Don't remove the health endpoint (`/api/health`)
+- Don't bypass the N-tier architecture (routes must only call services, services must call repositories for DB changes)
 - Don't change the port without updating both `application.yaml`'s `ktor.deployment.port` and `docker-compose.yml` — it's not hardcoded in `Application.kt` anymore
 - Don't remove Exposed ORM unless explicitly requested
 - If `maven-shade-plugin`'s config changes, keep the `ServicesResourceTransformer` — without it, only one of the two `META-INF/services/io.ktor.server.config.ConfigLoader` providers (HOCON's, from `ktor-server-core-jvm`, and YAML's, from `ktor-server-config-yaml-jvm`) survives shading into `target/backend.jar`, silently breaking config loading in the packaged jar (though not under `mvn exec:java`, which masks it)
@@ -30,10 +35,13 @@ Scoped to `apps/backend/`. See the [root AGENTS.md](../../AGENTS.md) for repo-wi
 
 ### Add a new API endpoint
 
-1. Edit `apps/backend/src/Application.kt`
-2. Add the route inside the `routing { }` block
-3. Use Exposed for database operations
-4. Test with `docker-compose up --build backend`, or faster: `pnpm run dev:backend` (or `mvn compile exec:java` from `apps/backend/`) against `docker-compose up -d postgres` — hot-reloads on `mvn compile`, no restart needed. See `apps/backend/README.md`'s "Locally, with hot reload" section.
+1. Define DTOs in `apps/backend/src/dto/`
+2. Define repository interface and Exposed implementation in `apps/backend/src/repository/`
+3. Define service interface and business logic implementation in `apps/backend/src/service/`
+4. Add the route handler in `apps/backend/src/routes/` calling the service
+5. Wire the repository, service, and routes in `apps/backend/src/Application.kt`
+6. Test with `docker-compose up --build backend`, or faster: `pnpm run dev:backend` (or `mvn compile exec:java` from `apps/backend/`) against `docker-compose up -d postgres` — hot-reloads on `mvn compile`, no restart needed. See `apps/backend/README.md`'s "Locally, with hot reload" section.
+
 
 ### Add a new migration
 

@@ -12,7 +12,13 @@ Scoped to `apps/frontend/`. See the [root AGENTS.md](../../AGENTS.md) for repo-w
 
 ## Allowed changes
 
-- `src/main.tsx` — React components
+- `src/components/` — React presentational & page components (`home/`, `discord/`, `layout/`)
+- `src/hooks/` — Custom React hooks (`useDiscordServers.ts`, `useNavigation.ts`, `useToast.ts`)
+- `src/services/` — API service clients calling backend endpoints
+- `src/context/` — React Context providers (`ToastProvider.tsx`)
+- `src/constants.ts` — App routes, API endpoints, timing config, and toast message templates
+- `src/types/` — TypeScript interfaces and models
+- `src/App.tsx`, `src/main.tsx`, `src/index.css`, `src/index.html` — Application shell and root
 - `vite.config.ts` — Vite configuration (the app-specific object merged on top of the shared base)
 - `eslint.config.mjs` — Only if adding app-specific overrides on top of `@angora/config/eslint/react.mjs`; put reusable rules in the shared package instead
 - `package.json` — Dependencies (check the license of anything new — see the root AGENTS.md's [Licensing](../../AGENTS.md#licensing) section)

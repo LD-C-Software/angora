@@ -35,6 +35,34 @@ This serves the app at [http://localhost:3000](http://localhost:3000) and proxie
 
 Run these from `apps/frontend/`, or from the repo root as `pnpm --filter angora-frontend run <script>`.
 
+## Architecture & Directory Structure
+
+The frontend is structured in an N-tier modular architecture for clean separation of concerns:
+
+```
+src/
+├── components/          # React presentational & page components
+│   ├── home/            # Overview / Dashboard home page
+│   ├── discord/         # Discord Bot Manager page & sub-tabs
+│   │   └── tabs/        # ConnectedServersTab, SlashCommandsTab, BackendHealthTab, ServerCard
+│   └── layout/          # Layout wrappers: Header.tsx, ToastContainer.tsx
+├── context/             # React Context definitions & providers (ToastProvider)
+├── hooks/               # Custom React hooks (useDiscordServers, useNavigation, useToast)
+├── services/            # API client layer (discordService) calling backend endpoints
+├── constants.ts         # Centralized routes, API endpoints, timing config, and toast message templates
+├── types/               # TypeScript interfaces (DiscordServer, ToastNotification, etc.)
+├── App.tsx              # Main application shell with routing & ToastProvider
+├── main.tsx             # React DOM root entrypoint
+├── index.css            # Global design tokens, layout styles, and toast animations
+└── index.html           # SPA root HTML template
+```
+
+### Features & Systems
+
+- **Centralized Constants (`constants.ts`)**: All routes (`APP_ROUTES`), backend endpoints (`API_ENDPOINTS`), timing intervals (`TIMING_CONFIG`), and toast notifications (`TOAST_MESSAGES`) are declared once as type-safe constants.
+- **Contextual Toast System**: A React Context (`ToastProvider` + `useToast`) provides auto-dismissing feedback notifications for user actions (bot leave, connection failures) without intercepting generic window errors.
+- **Passive Background Auto-Sync**: `useDiscordServers` polls server states silently in the background and on window focus, keeping server member counts and connection statuses current without disruptive full-page spinners.
+
 ## Notes
 
 - **Vite root is `src/`**: `vite.config.ts` sets `root: 'src'` and `build.outDir: '../dist'` because `index.html` lives in `src/`, not the project root. Its script tag references `/main.tsx` (relative to that root), not `/src/main.tsx`.

@@ -61,17 +61,30 @@ java -jar target/backend.jar
 mvn test
 ```
 
-There are no tests yet (`src/test` doesn't exist) — this currently passes vacuously ("No tests to run"). See the root README's [Limitations](../../README.md#limitations) section.
+## Architecture (N-Tier)
 
-To add the first one: create `src/test/kotlin/...`, add a test dependency to `pom.xml` (JUnit 5 or Kotest are the usual choices for Kotlin), and `mvn test` will pick it up automatically via the default `maven-surefire-plugin` binding — no extra plugin configuration needed. Run `node scripts/check-dependency-age.ts` after adding the dependency (see the repo-wide [Dependency Pinning & Guardrails](../../AGENTS.md#dependency-pinning--guardrails)).
+The backend follows a clean N-Tier architecture with strict layer separation:
+
+1. **API / Routes Layer (`src/routes/`)**: Defines KTor HTTP route endpoints, parses request bodies/parameters, calls the appropriate service method, and returns HTTP responses with DTOs. Does not perform direct database queries or transactions.
+2. **Service Layer (`src/service/`)**: Contains business logic, validation, third-party notifications (e.g. Discord bot notifications), and coordinates operations by calling the repository layer.
+3. **Repository Layer (`src/repository/`)**: Encapsulates Exposed ORM database transactions, CRUD operations, SQL queries, and mapping database rows to DTOs/models.
+4. **DTO / Data Layer (`src/dto/`, `src/Tables.kt`)**: Defines data transfer objects for API contracts and Exposed table schema definitions.
+
+Dependencies are wired in `src/Application.kt`.
 
 ## API Endpoints
 
-| Method | Endpoint       | Description                          | Response                                    |
-| ------ | -------------- | ------------------------------------- | -------------------------------------------- |
-| GET    | `/api/health`  | Health check with database connectivity | `{"status": "ok", "database": "connected"}` |
 
-Test it: `curl http://localhost:8080/api/health`
+| Method | Endpoint                        | Description                                      | Response                                      |
+| ------ | ------------------------------- | ------------------------------------------------ | ---------------------------------------------- |
+| GET    | `/api/health`                   | Health check with database connectivity          | `{"status": "ok", "database": "connected"}`   |
+| GET    | `/api/discord/servers`          | List all tracked Discord servers                 | `[{"id": "...", "guildId": "...", ...}]`       |
+| DELETE | `/api/discord/servers/{id}`     | Disconnect bot from server (marks left & leaves) | `{"status": "updated", "guildId": "...", ...}` |
+| POST   | `/api/discord/bot/sync`         | Sync guild info from Discord Bot gateway         | `{"status": "synced"}`                         |
+| GET    | `/api/discord/bot/invite`       | Get Discord bot OAuth invitation URL             | `{"clientId": "...", "inviteUrl": "..."}`      |
+
+Test health: `curl http://localhost:8080/api/health`  
+Test servers: `curl http://localhost:8080/api/discord/servers`
 
 ## Database access
 
@@ -130,6 +143,7 @@ Current tables (all UUID-keyed, all scoped by `company_id` where relevant — se
 | `users` | Login/auth — both internal staff and customer portal logins share this table, distinguished by `role_id` |
 | `accounts` | Customer/prospect organizations a company does business with |
 | `contacts` | People at those accounts; a contact only gets a portal login once linked to a `users` row |
+| `discord_servers` | Connected Discord servers, tracking `guild_id`, `name`, `icon_url`, `owner_id`, `member_count`, and `bot_joined` status |
 
 `src/Tables.kt` holds the matching Exposed `Table`/`UUIDTable` definitions used to query these from Kotlin — kept in sync with the SQL migrations by hand, since Flyway's migrations (not Exposed) are the source of truth for the actual schema.
 
