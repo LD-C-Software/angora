@@ -61,11 +61,19 @@ java -jar target/backend.jar
 mvn test
 ```
 
-There are no tests yet (`src/test` doesn't exist) — this currently passes vacuously ("No tests to run"). See the root README's [Limitations](../../README.md#limitations) section.
+## Architecture (N-Tier)
 
-To add the first one: create `src/test/kotlin/...`, add a test dependency to `pom.xml` (JUnit 5 or Kotest are the usual choices for Kotlin), and `mvn test` will pick it up automatically via the default `maven-surefire-plugin` binding — no extra plugin configuration needed. Run `node scripts/check-dependency-age.ts` after adding the dependency (see the repo-wide [Dependency Pinning & Guardrails](../../AGENTS.md#dependency-pinning--guardrails)).
+The backend follows a clean N-Tier architecture with strict layer separation:
+
+1. **API / Routes Layer (`src/routes/`)**: Defines KTor HTTP route endpoints, parses request bodies/parameters, calls the appropriate service method, and returns HTTP responses with DTOs. Does not perform direct database queries or transactions.
+2. **Service Layer (`src/service/`)**: Contains business logic, validation, third-party notifications (e.g. Discord bot notifications), and coordinates operations by calling the repository layer.
+3. **Repository Layer (`src/repository/`)**: Encapsulates Exposed ORM database transactions, CRUD operations, SQL queries, and mapping database rows to DTOs/models.
+4. **DTO / Data Layer (`src/dto/`, `src/Tables.kt`)**: Defines data transfer objects for API contracts and Exposed table schema definitions.
+
+Dependencies are wired in `src/Application.kt`.
 
 ## API Endpoints
+
 
 | Method | Endpoint       | Description                          | Response                                    |
 | ------ | -------------- | ------------------------------------- | -------------------------------------------- |

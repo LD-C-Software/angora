@@ -305,9 +305,11 @@ docker-compose --env-file .env.production up -d --build
 | `POSTGRES_PORT` | `5432` | Host port `postgres` publishes to |
 | `BACKEND_PORT` | `8080` | Host port `backend` publishes to |
 | `FRONTEND_PORT` | `3000` | Host port `frontend` publishes to |
+| `DISCORD_BOT_TOKEN` | `YOUR_DISCORD_BOT_TOKEN` | `discord-bot` token for connecting to Discord gateway (idles gracefully if unchanged) |
+| `DISCORD_CLIENT_ID` | `123456789012345678` | `discord-bot` application/client ID for command registration and OAuth invite URLs |
 
 - **Local development**: copy [`.env.example`](.env.example) to `.env` (`cp .env.example .env`) and edit it — docker-compose loads `.env` from the project root automatically. This step is optional; the defaults above already match `.env.example`.
-- **Production-like run**: copy [`.env.production.example`](.env.production.example) to `.env.production`, fill in a real `POSTGRES_PASSWORD` (the placeholder isn't usable as-is), and pass it explicitly — docker-compose only auto-loads a file literally named `.env`, so this one is opt-in on purpose:
+- **Production-like run**: copy [`.env.production.example`](.env.production.example) to `.env.production`, fill in real secrets (especially `POSTGRES_PASSWORD`, as the placeholder isn't usable as-is, and real `DISCORD_BOT_TOKEN`/`DISCORD_CLIENT_ID` values if enabling live Discord bot functionality), and pass it explicitly — docker-compose only auto-loads a file literally named `.env`, so this one is opt-in on purpose:
   ```bash
   docker-compose --env-file .env.production up -d --build
   ```

@@ -1,17 +1,22 @@
 package cloud.angora
 
+import cloud.angora.constants.BackendConstants
+import cloud.angora.repository.DiscordRepositoryImpl
+import cloud.angora.repository.HealthRepositoryImpl
+import cloud.angora.routes.discordRoutes
+import cloud.angora.routes.healthRoutes
+import cloud.angora.service.DiscordServiceImpl
+import cloud.angora.service.HealthServiceImpl
+import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.netty.*
-import io.ktor.http.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
 import io.ktor.server.plugins.contentnegotiation.*
-import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.plugins.cors.routing.*
+import io.ktor.server.routing.*
 import kotlinx.serialization.json.Json
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.jdbc.Database
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 fun main(args: Array<String>) {
     EngineMain.main(args)
@@ -29,7 +34,7 @@ fun Application.module() {
 
     val database = Database.connect(
         url = dbUrl,
-        driver = "org.postgresql.Driver",
+        driver = BackendConstants.DatabaseDefaults.DRIVER_CLASS,
         user = dbUser,
         password = dbPassword
     )
@@ -53,20 +58,25 @@ fun Application.module() {
         })
     }
 
-    val discordClientId = System.getenv("DISCORD_CLIENT_ID") ?: "123456789012345678"
+    val discordClientId = System.getenv("DISCORD_CLIENT_ID") ?: BackendConstants.Discord.DEFAULT_CLIENT_ID
+    val discordBotUrl = System.getenv("DISCORD_BOT_URL") ?: BackendConstants.Discord.DEFAULT_BOT_URL
 
+    // Repositories (Data Access Layer)
+    val healthRepository = HealthRepositoryImpl(database)
+    val discordRepository = DiscordRepositoryImpl(database)
+
+    // Services (Business Logic Layer)
+    val healthService = HealthServiceImpl(healthRepository)
+    val discordService = DiscordServiceImpl(
+        discordRepository = discordRepository,
+        clientId = discordClientId,
+        botUrl = discordBotUrl
+    )
+
+    // Routing (API / Controller Layer)
     routing {
-        get("/api/health") {
-            val healthStatus = try {
-                transaction(database) {
-                    mapOf("status" to "ok", "database" to "connected")
-                }
-            } catch (e: Exception) {
-                mapOf("status" to "ok", "database" to "disconnected", "error" to e.message)
-            }
-            call.respond(healthStatus)
-        }
-
-        discordRoutes(database, discordClientId)
+        healthRoutes(healthService)
+        discordRoutes(discordService)
     }
 }
+

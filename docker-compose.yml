@@ -77,8 +77,6 @@ services:
       context: .
       dockerfile: apps/bots/discord/Dockerfile
     container_name: angora-discord-bot
-    ports:
-      - '3001:3001'
     environment:
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-YOUR_DISCORD_BOT_TOKEN}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-123456789012345678}

@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import {
+  APP_ROUTES,
+  API_ENDPOINTS,
+  DISCORD_CONFIG,
+  TIMING_CONFIG,
+  TOAST_MESSAGES,
+} from './constants'
 
 interface DiscordServer {
   id: string
@@ -17,10 +24,19 @@ interface InviteData {
   clientId: string
 }
 
+export interface ToastNotification {
+  id: string
+  type: 'error' | 'warning' | 'success' | 'info'
+  title: string
+  message: string
+}
+
 export function App() {
   // Navigation Routing State
   const [currentPath, setCurrentPath] = useState<string>(() => {
-    return window.location.pathname.startsWith('/discord') ? '/discordbot' : '/'
+    return window.location.pathname.startsWith('/discord')
+      ? APP_ROUTES.DISCORD_BOT
+      : APP_ROUTES.HOME
   })
 
   // Discord Manager Sub-tabs
@@ -31,75 +47,148 @@ export function App() {
   const [inviteData, setInviteData] = useState<InviteData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showModal, setShowModal] = useState(false)
+  const [toasts, setToasts] = useState<ToastNotification[]>([])
 
-  // Manual server form state
-  const [manualGuildId, setManualGuildId] = useState('')
-  const [manualName, setManualName] = useState('')
-  const [manualMemberCount, setManualMemberCount] = useState(10)
+  const addToast = useCallback(
+    (
+      type: 'error' | 'warning' | 'success' | 'info',
+      title: string,
+      message: string,
+    ) => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      setToasts((prev) => [...prev, { id, type, title, message }])
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id))
+      }, TIMING_CONFIG.TOAST_AUTO_DISMISS_MS)
+    },
+    [],
+  )
+
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [])
+
+  // Global window error & rejection handlers to capture errors as toasts instead of console spew
+  useEffect(() => {
+    const handleGlobalError = (event: ErrorEvent) => {
+      event.preventDefault()
+      const toastData = TOAST_MESSAGES.UNHANDLED_ERROR(event.message)
+      addToast('error', toastData.title, toastData.message)
+    }
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      event.preventDefault()
+      const reason =
+        event.reason instanceof Error
+          ? event.reason.message
+          : typeof event.reason === 'string'
+            ? event.reason
+            : undefined
+      const toastData = TOAST_MESSAGES.UNHANDLED_REJECTION(reason)
+      addToast('error', toastData.title, toastData.message)
+    }
+
+    window.addEventListener('error', handleGlobalError)
+    window.addEventListener('unhandledrejection', handleUnhandledRejection)
+
+    return () => {
+      window.removeEventListener('error', handleGlobalError)
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection)
+    }
+  }, [addToast])
 
   // Handle client-side routing
   const navigate = (path: string) => {
     window.history.pushState({}, '', path)
-    setCurrentPath(path.startsWith('/discord') ? '/discordbot' : '/')
+    setCurrentPath(
+      path.startsWith('/discord') ? APP_ROUTES.DISCORD_BOT : APP_ROUTES.HOME,
+    )
   }
 
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname
-      setCurrentPath(path.startsWith('/discord') ? '/discordbot' : '/')
+      setCurrentPath(
+        path.startsWith('/discord') ? APP_ROUTES.DISCORD_BOT : APP_ROUTES.HOME,
+      )
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
   // Fetch servers and invite link
-  const fetchServers = useCallback((showLoadingSpinner: boolean = false) => {
-    if (typeof showLoadingSpinner === 'boolean' && showLoadingSpinner) {
-      setLoading(true)
-    }
-    fetch('/api/discord/servers')
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP error ${res.status}`)
-        return res.json()
-      })
-      .then((data: DiscordServer[]) => {
-        setServers(data)
-        setLoading(false)
-      })
-      .catch((err) => {
-        setError(err.message)
-        setLoading(false)
-      })
-  }, [])
+  const fetchServers = useCallback(
+    (showLoadingSpinner: boolean = false) => {
+      if (typeof showLoadingSpinner === 'boolean' && showLoadingSpinner) {
+        setLoading(true)
+      }
+      fetch(API_ENDPOINTS.DISCORD_SERVERS)
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          return res.json()
+        })
+        .then((data: DiscordServer[]) => {
+          setServers(data)
+          setError(null)
+          setLoading(false)
+          if (showLoadingSpinner) {
+            addToast(
+              'success',
+              TOAST_MESSAGES.SYNC_SUCCESS.title,
+              TOAST_MESSAGES.SYNC_SUCCESS.message,
+            )
+          }
+        })
+        .catch((err) => {
+          const toastData = TOAST_MESSAGES.SYNC_ERROR(err.message)
+          setError(toastData.message)
+          setLoading(false)
+          if (showLoadingSpinner) {
+            addToast('error', toastData.title, toastData.message)
+          }
+        })
+    },
+    [addToast],
+  )
 
   const fetchInviteLink = useCallback(() => {
-    fetch('/api/discord/bot/invite')
-      .then((res) => res.json())
+    fetch(API_ENDPOINTS.DISCORD_BOT_INVITE)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
       .then((data: InviteData) => setInviteData(data))
-      .catch((err) => console.error('Failed to fetch invite URL:', err))
-  }, [])
+      .catch((err) => {
+        const toastData = TOAST_MESSAGES.INVITE_FETCH_ERROR(err.message)
+        addToast('warning', toastData.title, toastData.message)
+      })
+  }, [addToast])
 
   useEffect(() => {
     let isMounted = true
 
     const loadServers = (showLoading = false) => {
       if (showLoading) setLoading(true)
-      fetch('/api/discord/servers')
+      fetch(API_ENDPOINTS.DISCORD_SERVERS)
         .then((res) => {
-          if (!res.ok) throw new Error(`HTTP error ${res.status}`)
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
           return res.json()
         })
         .then((data: DiscordServer[]) => {
           if (isMounted) {
             setServers(data)
+            setError(null)
             setLoading(false)
           }
         })
         .catch((err) => {
           if (isMounted) {
-            setError(err.message)
+            const toastData = TOAST_MESSAGES.SYNC_ERROR(err.message)
+            setError(toastData.message)
             setLoading(false)
+            if (showLoading) {
+              addToast('error', toastData.title, toastData.message)
+            }
           }
         })
     }
@@ -107,10 +196,10 @@ export function App() {
     loadServers(true)
     fetchInviteLink()
 
-    // Silent background poll every 2.5s so when bot joins/leaves, UI updates immediately
+    // Silent background poll so when bot joins/leaves, UI updates immediately
     const pollInterval = setInterval(() => {
       loadServers(false)
-    }, 2500)
+    }, TIMING_CONFIG.BACKGROUND_POLL_INTERVAL_MS)
 
     // Refetch when returning to the tab (e.g. after Discord OAuth flow)
     const handleFocus = () => loadServers(false)
@@ -121,50 +210,35 @@ export function App() {
       clearInterval(pollInterval)
       window.removeEventListener('focus', handleFocus)
     }
-  }, [fetchInviteLink])
+  }, [fetchInviteLink, addToast])
 
-  const handleRegisterServer = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!manualGuildId || !manualName) return
-
-    fetch('/api/discord/servers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        guildId: manualGuildId,
-        name: manualName,
-        memberCount: Number(manualMemberCount),
-      }),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to register server')
-        return res.json()
-      })
-      .then(() => {
-        setShowModal(false)
-        setManualGuildId('')
-        setManualName('')
-        fetchServers(false)
-      })
-      .catch((err) => alert(err.message))
-  }
-
-  const handleDeleteServer = (id: string) => {
-    if (!confirm('Are you sure you want to remove this Discord server?')) return
+  const handleDeleteServer = (id: string, serverName?: string) => {
+    if (
+      !confirm(
+        `Are you sure you want to disconnect ${serverName || 'this Discord server'}?`,
+      )
+    )
+      return
 
     // Optimistically update card UI immediately
     setServers((prev) =>
       prev.map((s) => (s.id === id ? { ...s, botJoined: false } : s)),
     )
 
-    fetch(`/api/discord/servers/${id}`, {
+    fetch(API_ENDPOINTS.DISCORD_SERVER_BY_ID(id), {
       method: 'DELETE',
     })
       .then((res) => {
-        if (!res.ok) throw new Error('Failed to remove server')
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const toastData = TOAST_MESSAGES.SERVER_DISCONNECT_REQUESTED(serverName)
+        addToast('info', toastData.title, toastData.message)
       })
       .catch((err) => {
-        alert(err.message)
+        const toastData = TOAST_MESSAGES.SERVER_DISCONNECT_FAILED(
+          serverName,
+          err.message,
+        )
+        addToast('error', toastData.title, toastData.message)
       })
   }
 
@@ -392,7 +466,7 @@ export function App() {
               <a
                 href={
                   inviteData?.inviteUrl ||
-                  'https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot+applications.commands&permissions=8'
+                  'https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot+applications.commands&permissions=2147568640'
                 }
                 target="_blank"
                 rel="noreferrer"
@@ -400,15 +474,6 @@ export function App() {
               >
                 🤖 Add Bot to Server (OAuth)
               </a>
-              <button
-                className="btn btn-secondary"
-                onClick={() => {
-                  fetchInviteLink()
-                  setShowModal(true)
-                }}
-              >
-                ➕ Register Server
-              </button>
             </div>
           </div>
 
@@ -461,13 +526,12 @@ export function App() {
                       marginTop: '0.5rem',
                     }}
                   >
-                    Invite the bot to your Discord server or list a server
-                    manually to get started.
+                    Invite the bot to your Discord server to get started.
                   </p>
                   <a
                     href={
                       inviteData?.inviteUrl ||
-                      'https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot+applications.commands&permissions=8'
+                      DISCORD_CONFIG.FALLBACK_INVITE_URL
                     }
                     target="_blank"
                     rel="noreferrer"
@@ -518,7 +582,9 @@ export function App() {
                       {server.botJoined !== false ? (
                         <button
                           className="btn btn-danger"
-                          onClick={() => handleDeleteServer(server.id)}
+                          onClick={() =>
+                            handleDeleteServer(server.id, server.name)
+                          }
                         >
                           Remove
                         </button>
@@ -526,7 +592,7 @@ export function App() {
                         <a
                           href={
                             inviteData?.inviteUrl ||
-                            'https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot+applications.commands&permissions=8'
+                            DISCORD_CONFIG.FALLBACK_INVITE_URL
                           }
                           target="_blank"
                           rel="noreferrer"
@@ -603,73 +669,35 @@ export function App() {
         </main>
       )}
 
-      {/* MANUAL REGISTER MODAL */}
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ marginBottom: '1rem' }}>
-              List / Register Discord Server
-            </h2>
-            <p
-              style={{
-                color: 'var(--text-secondary)',
-                fontSize: '0.85rem',
-                marginBottom: '1.5rem',
-              }}
+      {/* Toast Notification Container */}
+      <div
+        className="toast-container"
+        role="region"
+        aria-label="Notifications"
+        aria-live="polite"
+      >
+        {toasts.map((toast) => (
+          <div key={toast.id} className={`toast toast-${toast.type}`}>
+            <div className="toast-icon">
+              {toast.type === 'error' && '❌'}
+              {toast.type === 'warning' && '⚠️'}
+              {toast.type === 'success' && '✅'}
+              {toast.type === 'info' && 'ℹ️'}
+            </div>
+            <div className="toast-content">
+              <div className="toast-title">{toast.title}</div>
+              <div className="toast-message">{toast.message}</div>
+            </div>
+            <button
+              className="toast-close"
+              onClick={() => removeToast(toast.id)}
+              aria-label="Close notification"
             >
-              Add a server record manually to register it in your CRM system.
-            </p>
-            <form onSubmit={handleRegisterServer}>
-              <div className="form-group">
-                <label className="form-label">Discord Server (Guild) ID</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. 102938475665748392"
-                  value={manualGuildId}
-                  onChange={(e) => setManualGuildId(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Server Name</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. My Community Server"
-                  value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Member Count</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  value={manualMemberCount}
-                  onChange={(e) => setManualMemberCount(Number(e.target.value))}
-                />
-              </div>
-              <div
-                className="btn-group"
-                style={{ justifyContent: 'flex-end', marginTop: '1.5rem' }}
-              >
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setShowModal(false)}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-discord">
-                  Save Server
-                </button>
-              </div>
-            </form>
+              ✕
+            </button>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   )
 }

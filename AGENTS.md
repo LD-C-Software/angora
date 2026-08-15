@@ -55,7 +55,7 @@ See [README.md](README.md) for the full quickstart, service list, and project st
 
 ## Environment Variables
 
-`docker-compose.yml` sources its configurable values from environment variables, each with a `:-default` fallback matching the original hardcoded values — so `docker-compose up --build` still works with zero setup even if no `.env` file exists. The variables: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, `BACKEND_PORT`, `FRONTEND_PORT`. `.env.example` documents all of them; `.env.production.example` is the same set with a placeholder password that must be replaced.
+`docker-compose.yml` sources its configurable values from environment variables, each with a `:-default` fallback matching the original hardcoded values — so `docker-compose up --build` still works with zero setup even if no `.env` file exists. The variables: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, `BACKEND_PORT`, `FRONTEND_PORT`, `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`. `.env.example` documents all of them; `.env.production.example` is the same set with a placeholder password that must be replaced.
 
 - `.env` is auto-loaded by docker-compose from the project root (local dev, optional).
 - `.env.production` is **not** auto-loaded — it must be passed explicitly with `docker-compose --env-file .env.production up -d --build`. That's intentional: a production run should never happen by accident.

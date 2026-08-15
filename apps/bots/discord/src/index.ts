@@ -7,10 +7,11 @@ import {
   SlashCommandBuilder,
   MessageFlags,
 } from 'discord.js'
+import { BOT_CONFIG, BOT_ROUTES } from './constants.js'
 
 const token = process.env.DISCORD_BOT_TOKEN
 const clientId = process.env.DISCORD_CLIENT_ID
-const backendUrl = process.env.BACKEND_URL || 'http://backend:8080'
+const backendUrl = process.env.BACKEND_URL || BOT_CONFIG.DEFAULT_BACKEND_URL
 
 // Sync guild status with Angora backend
 async function syncGuildWithBackend(guildData: {
@@ -22,11 +23,14 @@ async function syncGuildWithBackend(guildData: {
   botJoined: boolean
 }) {
   try {
-    const res = await fetch(`${backendUrl}/api/discord/bot/sync`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(guildData),
-    })
+    const res = await fetch(
+      `${backendUrl}${BOT_ROUTES.BACKEND_SYNC_ENDPOINT}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(guildData),
+      },
+    )
     if (!res.ok) {
       console.error(
         `[Discord Bot] Failed to sync guild ${guildData.name} (${res.status})`,
@@ -50,7 +54,9 @@ async function registerCommands(botToken: string, botClientId: string) {
       .setDescription('Check Angora CRM Discord bot latency'),
   ].map((cmd) => cmd.toJSON())
 
-  const rest = new REST({ version: '10' }).setToken(botToken)
+  const rest = new REST({ version: BOT_CONFIG.REST_API_VERSION }).setToken(
+    botToken,
+  )
 
   try {
     console.log('[Discord Bot] Registering global slash commands...')
@@ -61,7 +67,7 @@ async function registerCommands(botToken: string, botClientId: string) {
   }
 }
 
-if (!token || token === 'YOUR_DISCORD_BOT_TOKEN') {
+if (!token || token === BOT_CONFIG.TOKEN_PLACEHOLDER) {
   console.log('[Discord Bot] No DISCORD_BOT_TOKEN provided in environment.')
   console.log(
     '[Discord Bot] Set DISCORD_BOT_TOKEN and DISCORD_CLIENT_ID in .env to connect to live Discord gateway.',
@@ -71,7 +77,7 @@ if (!token || token === 'YOUR_DISCORD_BOT_TOKEN') {
   // Keep process active in docker container
   setInterval(() => {
     // Passive heartbeat check
-  }, 60000)
+  }, BOT_CONFIG.PASSIVE_HEARTBEAT_MS)
 } else {
   const client = new Client({
     intents: [GatewayIntentBits.Guilds],
@@ -98,16 +104,19 @@ if (!token || token === 'YOUR_DISCORD_BOT_TOKEN') {
       await registerCommands(token, clientId)
     }
 
-    // Sync all currently joined guilds on startup & set periodic 60s sync
+    // Sync all currently joined guilds on startup & set periodic sync
     await syncAllGuilds()
-    setInterval(syncAllGuilds, 60000)
+    setInterval(syncAllGuilds, BOT_CONFIG.SYNC_INTERVAL_MS)
   })
 
   // Start internal HTTP listener for CRM control actions (e.g. leaving guild)
   const server = http.createServer(async (req, res) => {
     const url = req.url || ''
-    if (req.method === 'POST' && url.startsWith('/leave/')) {
-      const targetGuildId = url.split('/leave/')[1]
+    if (
+      req.method === 'POST' &&
+      url.startsWith(BOT_ROUTES.INTERNAL_LEAVE_PREFIX)
+    ) {
+      const targetGuildId = url.split(BOT_ROUTES.INTERNAL_LEAVE_PREFIX)[1]
       if (targetGuildId) {
         const guild = client.guilds.cache.get(targetGuildId)
         if (guild) {
@@ -141,8 +150,10 @@ if (!token || token === 'YOUR_DISCORD_BOT_TOKEN') {
     res.end(JSON.stringify({ error: 'Not found' }))
   })
 
-  server.listen(3001, () => {
-    console.log('[Discord Bot] Internal API listener running on port 3001')
+  server.listen(BOT_CONFIG.DEFAULT_PORT, () => {
+    console.log(
+      `[Discord Bot] Internal API listener running on port ${BOT_CONFIG.DEFAULT_PORT}`,
+    )
   })
 
   // Handle joining new Discord server
