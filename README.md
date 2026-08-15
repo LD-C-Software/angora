@@ -403,7 +403,9 @@ Service-specific issues (backend won't start, frontend can't reach the API, etc.
 
 ## Contributing
 
-1. Create a feature branch (`git checkout -b feature/your-feature`)
+Every change starts from an issue. Issues are auto-prefixed `ANGORA-<number>` on open (see `.github/workflows/issue-title-prefix.yml`), and branch names must follow the same prefix — a repository ruleset rejects any new branch that isn't named `main` or `ANGORA-<number>-...` (there's no way to have GitHub generate this name for you; type it by hand, including when using the "Create a branch" button on an issue).
+
+1. Create a feature branch named `ANGORA-<issue-number>-short-description` (e.g. `git checkout -b ANGORA-42-fix-login-bug`)
 2. Make your changes
 3. Test with `docker-compose up --build` (and/or the per-service `lint`/`typecheck`/`test` commands — see the relevant module README)
 4. Commit your changes (`git commit -m 'Add some feature'`) — the pre-commit hook runs lint + format:check automatically

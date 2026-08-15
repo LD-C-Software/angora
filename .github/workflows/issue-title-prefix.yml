@@ -1,0 +1,24 @@
+name: Prefix issue title with ANGORA-<number>
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  prefix-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add ANGORA-<number> prefix
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TITLE: ${{ github.event.issue.title }}
+        run: |
+          case "$TITLE" in
+            ANGORA-*) exit 0 ;;
+          esac
+          gh issue edit "$ISSUE_NUMBER" --repo "$REPO" --title "ANGORA-$ISSUE_NUMBER: $TITLE"
