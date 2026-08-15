@@ -1,0 +1,50 @@
+name: New feature
+description: Propose a feature you intend to build and submit a PR for
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What are you building?
+      description: A clear description of the feature and the problem it solves.
+    validations:
+      required: true
+
+  - type: textarea
+    id: approach
+    attributes:
+      label: Implementation approach
+      description: How you plan to build it (design, key files/areas touched, tradeoffs).
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      options:
+        - backend
+        - frontend
+        - slack-bot
+        - discord-bot
+        - email-bot
+        - infra / docker
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: related
+    attributes:
+      label: Related issue or discussion
+      description: Link to any related issue, discussion, or design doc.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: intent
+    attributes:
+      label: Intent
+      options:
+        - label: I intend to submit a PR for this
+          required: false

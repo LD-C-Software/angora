@@ -18,21 +18,6 @@ body:
     validations:
       required: true
 
-  - type: dropdown
-    id: component
-    attributes:
-      label: Affected component
-      options:
-        - backend
-        - frontend
-        - slack-bot
-        - discord-bot
-        - email-bot
-        - infra / docker
-        - other
-    validations:
-      required: true
-
   - type: textarea
     id: alternatives
     attributes:
