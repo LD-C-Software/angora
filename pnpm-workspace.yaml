@@ -20,6 +20,14 @@ catalog:
   vite: 8.1.4
   vitest: 4.1.10
 
+# Security patches for transitive deps that aren't declared directly anywhere
+# (pulled in via vite -> postcss -> nanoid, and via minimatch -> brace-expansion).
+# See Dependabot alerts #1-#6.
+overrides:
+  nanoid: 3.3.18
+  postcss: 8.5.23
+  brace-expansion: 5.0.9
+
 # Supply-chain guardrail: refuse to resolve/install any package version
 # published less than 7 days (10080 minutes) ago. Applies to direct and
 # transitive dependencies, and is re-checked on every `pnpm install`
