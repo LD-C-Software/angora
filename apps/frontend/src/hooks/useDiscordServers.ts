@@ -85,9 +85,7 @@ export function useDiscordServers() {
       }
 
       try {
-        console.log('here hehe')
         await discordService.leaveServer(id)
-
         // Optimistically update UI
         setServers((prev) =>
           prev.map((s) =>
