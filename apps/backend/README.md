@@ -75,11 +75,16 @@ Dependencies are wired in `src/Application.kt`.
 ## API Endpoints
 
 
-| Method | Endpoint       | Description                          | Response                                    |
-| ------ | -------------- | ------------------------------------- | -------------------------------------------- |
-| GET    | `/api/health`  | Health check with database connectivity | `{"status": "ok", "database": "connected"}` |
+| Method | Endpoint                        | Description                                      | Response                                      |
+| ------ | ------------------------------- | ------------------------------------------------ | ---------------------------------------------- |
+| GET    | `/api/health`                   | Health check with database connectivity          | `{"status": "ok", "database": "connected"}`   |
+| GET    | `/api/discord/servers`          | List all tracked Discord servers                 | `[{"id": "...", "guildId": "...", ...}]`       |
+| DELETE | `/api/discord/servers/{id}`     | Disconnect bot from server (marks left & leaves) | `{"status": "updated", "guildId": "...", ...}` |
+| POST   | `/api/discord/bot/sync`         | Sync guild info from Discord Bot gateway         | `{"status": "synced"}`                         |
+| GET    | `/api/discord/bot/invite`       | Get Discord bot OAuth invitation URL             | `{"clientId": "...", "inviteUrl": "..."}`      |
 
-Test it: `curl http://localhost:8080/api/health`
+Test health: `curl http://localhost:8080/api/health`  
+Test servers: `curl http://localhost:8080/api/discord/servers`
 
 ## Database access
 
@@ -138,6 +143,7 @@ Current tables (all UUID-keyed, all scoped by `company_id` where relevant — se
 | `users` | Login/auth — both internal staff and customer portal logins share this table, distinguished by `role_id` |
 | `accounts` | Customer/prospect organizations a company does business with |
 | `contacts` | People at those accounts; a contact only gets a portal login once linked to a `users` row |
+| `discord_servers` | Connected Discord servers, tracking `guild_id`, `name`, `icon_url`, `owner_id`, `member_count`, and `bot_joined` status |
 
 `src/Tables.kt` holds the matching Exposed `Table`/`UUIDTable` definitions used to query these from Kotlin — kept in sync with the SQL migrations by hand, since Flyway's migrations (not Exposed) are the source of truth for the actual schema.
 

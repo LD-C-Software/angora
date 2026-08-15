@@ -11,7 +11,7 @@ Scoped to `apps/bots/*/` (slack, discord, email). All three are identical in str
 
 ## Allowed changes
 
-- `src/index.ts` — Bot logic
+- `src/` — Bot logic (`index.ts`, `client/`, `server/`, `services/`, `constants.ts`, `types/`)
 - `package.json` — Dependencies (check the license of anything new — see the root AGENTS.md's [Licensing](../../AGENTS.md#licensing) section)
 - `Dockerfile` — Container configuration
 

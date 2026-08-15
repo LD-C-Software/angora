@@ -47,7 +47,7 @@ class DiscordRepositoryImpl(private val database: Database) : DiscordRepository 
             val serverRow = try {
                 val uuid = UUID.fromString(idOrGuildId)
                 DiscordServers.selectAll().where { DiscordServers.id eq uuid }.singleOrNull()
-            } catch (_: Exception) {
+            } catch (e: IllegalArgumentException) {
                 DiscordServers.selectAll().where { DiscordServers.guildId eq idOrGuildId }.singleOrNull()
             }
 
@@ -74,8 +74,8 @@ class DiscordRepositoryImpl(private val database: Database) : DiscordRepository 
             if (existing != null) {
                 DiscordServers.update({ DiscordServers.guildId eq req.guildId }) {
                     it[name] = req.name
-                    if (req.iconUrl != null) it[iconUrl] = req.iconUrl
-                    if (req.ownerId != null) it[ownerId] = req.ownerId
+                    it[iconUrl] = req.iconUrl
+                    it[ownerId] = req.ownerId
                     it[memberCount] = req.memberCount
                     it[botJoined] = req.botJoined
                     it[updatedAt] = now
@@ -95,3 +95,4 @@ class DiscordRepositoryImpl(private val database: Database) : DiscordRepository 
         }
     }
 }
+

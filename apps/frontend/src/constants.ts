@@ -25,32 +25,12 @@ export const TIMING_CONFIG = {
 } as const
 
 export const TOAST_MESSAGES = {
-  SYNC_SUCCESS: {
-    title: 'System Synchronized',
-    message: 'Discord server status and records have been refreshed.',
-  },
-  SYNC_ERROR: (reason?: string) => ({
-    title: 'Data Sync Failed',
-    message: `Unable to connect to Angora backend (${reason || 'Network error'}).`,
-  }),
-  INVITE_FETCH_ERROR: (reason?: string) => ({
-    title: 'Invite Link Notice',
-    message: `Could not refresh Discord bot OAuth invite link (${reason || 'connection failed'}).`,
-  }),
-  SERVER_DISCONNECT_REQUESTED: (serverName?: string) => ({
-    title: 'Disconnect Requested',
-    message: `Requested Discord bot to leave ${serverName || 'the server'}.`,
+  BOT_LEFT_SERVER: (serverName?: string) => ({
+    title: 'Bot Left Server',
+    message: `Angora Bot has left "${serverName || 'a Discord server'}".`,
   }),
   SERVER_DISCONNECT_FAILED: (serverName?: string, reason?: string) => ({
     title: 'Disconnect Failed',
     message: `Could not disconnect ${serverName || 'server'} (${reason || 'Network error'}).`,
-  }),
-  UNHANDLED_ERROR: (message?: string) => ({
-    title: 'Application Error',
-    message: message || 'An unexpected error occurred.',
-  }),
-  UNHANDLED_REJECTION: (reason?: string) => ({
-    title: 'Operation Failed',
-    message: reason || 'An unexpected async operation failed.',
   }),
 } as const
