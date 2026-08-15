@@ -228,9 +228,8 @@ Newly-published versions are a common supply-chain attack vector (a maintainer's
 | Hook | What it does |
 | ------ | --------------- |
 | `pre-commit` | Runs `pnpm run lint` and `pnpm run format:check`. Check-only — it blocks the commit on a violation rather than auto-fixing; run `pnpm run format` (or fix the lint error) and commit again. |
-| `pre-push` | Blocks `git push` straight to `main` from any machine with these hooks installed, forcing changes through a branch + PR instead. |
 
-**The `pre-push` guard is a local stand-in for real GitHub branch protection, not a replacement for it.** This repo is private on a GitHub plan that doesn't support branch protection or repository rulesets (confirmed via the API — it returns "Upgrade to GitHub Pro or make this repository public"). The hook only affects pushes made from a machine that ran `pnpm install`; it's bypassable with `git push --no-verify` or from any clone without the hooks set up, and it has no effect on merging a PR via the GitHub UI/`gh pr merge`. See [Limitations](#limitations).
+**`main` is protected server-side by GitHub branch protection**, not just a local hook: pull requests require 1 approval (stale reviews dismissed on new commits), the `backend`, `frontend-bots`, and `guardrails` CI checks must pass, conversations must be resolved, admins are included, and force-pushes/deletion are blocked. There used to be a local `pre-push` hook standing in for this before the repo went public — it's been removed now that the real thing is in place.
 
 ### CI (`.github/workflows/ci.yml`)
 
@@ -327,8 +326,7 @@ angora/
 │   └── pull_request_template.md
 │
 ├── .husky/
-│   ├── pre-commit                  # lint + format:check, check-only
-│   └── pre-push                    # Blocks direct push to main — local stand-in, see Limitations
+│   └── pre-commit                  # lint + format:check, check-only
 │
 ├── apps/
 │   ├── backend/                    # KTor + Exposed ORM — see apps/backend/README.md, AGENTS.md
@@ -379,7 +377,6 @@ Connection details from the backend's own code live in [`apps/backend/README.md`
 
 Things that look done but have known gaps worth knowing about before relying on them:
 
-- **No real branch protection.** GitHub branch protection / rulesets aren't available on this repo (private, on a plan that gates the feature — see [CI, Git Hooks & Deployment](#ci-git-hooks--deployment)). The `pre-push` git hook is a local-only workaround: it stops an accidental direct push from a machine that has the hooks installed, but it's not enforced by GitHub itself. Anyone can still push to `main` directly via `--no-verify`, an unhooked clone, or the GitHub web UI/API. Set up real branch protection (requiring the `backend`, `frontend-bots`, and `guardrails` checks) once the repo is public or the org is on a plan that supports it, and remove `.husky/pre-push` at that point.
 - **Test coverage is a placeholder, not real coverage.** The backend has zero tests (`mvn test` currently passes only because there's nothing to run). The frontend and each bot have exactly one placeholder Vitest smoke test each, added to give CI something meaningful to run — none of them test actual behavior yet. A green CI run currently means "compiles, lints, and formats correctly," not "is correct."
 - **Deploy is not wired up.** `.github/workflows/deploy.yml` is a manual-trigger-only stub with TODO steps — merging to `main` does not deploy anything anywhere yet.
 
@@ -406,7 +403,9 @@ Service-specific issues (backend won't start, frontend can't reach the API, etc.
 
 ## Contributing
 
-1. Create a feature branch (`git checkout -b feature/your-feature`)
+Every change starts from an issue. Issues are auto-prefixed `ANGORA-<number>` on open (see `.github/workflows/issue-title-prefix.yml`), and branch names must follow the same prefix — a repository ruleset rejects any new branch that isn't named `main` or `ANGORA-<number>-...` (there's no way to have GitHub generate this name for you; type it by hand, including when using the "Create a branch" button on an issue).
+
+1. Create a feature branch named `ANGORA-<issue-number>-short-description` (e.g. `git checkout -b ANGORA-42-fix-login-bug`)
 2. Make your changes
 3. Test with `docker-compose up --build` (and/or the per-service `lint`/`typecheck`/`test` commands — see the relevant module README)
 4. Commit your changes (`git commit -m 'Add some feature'`) — the pre-commit hook runs lint + format:check automatically
