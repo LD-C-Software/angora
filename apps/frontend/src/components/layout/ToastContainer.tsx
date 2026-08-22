@@ -1,4 +1,13 @@
 import { useToast } from '../../hooks/useToast'
+import type { ToastType } from '../../types'
+import styles from './ToastContainer.module.css'
+
+const TYPE_CLASS: Record<ToastType, string> = {
+  error: styles.error,
+  warning: styles.warning,
+  success: styles.success,
+  info: styles.info,
+}
 
 export function ToastContainer() {
   const { toasts, removeToast } = useToast()
@@ -7,25 +16,28 @@ export function ToastContainer() {
 
   return (
     <div
-      className="toast-container"
+      className={styles.container}
       role="region"
       aria-label="Notifications"
       aria-live="polite"
     >
       {toasts.map((toast) => (
-        <div key={toast.id} className={`toast toast-${toast.type}`}>
-          <div className="toast-icon">
+        <div
+          key={toast.id}
+          className={`${styles.toast} ${TYPE_CLASS[toast.type]}`}
+        >
+          <div className={styles.icon}>
             {toast.type === 'error' && '❌'}
             {toast.type === 'warning' && '⚠️'}
             {toast.type === 'success' && '✅'}
             {toast.type === 'info' && 'ℹ️'}
           </div>
-          <div className="toast-content">
-            <div className="toast-title">{toast.title}</div>
-            <div className="toast-message">{toast.message}</div>
+          <div className={styles.content}>
+            <div className={styles.title}>{toast.title}</div>
+            <div className={styles.message}>{toast.message}</div>
           </div>
           <button
-            className="toast-close"
+            className={styles.close}
             onClick={() => removeToast(toast.id)}
             aria-label="Close notification"
           >

@@ -24,4 +24,10 @@ export interface ToastNotification {
   message: string
 }
 
-export type DiscordManagerTab = 'discord' | 'commands' | 'health'
+export interface DiscordOutletContext {
+  servers: DiscordServer[]
+  inviteData: InviteData | null
+  loading: boolean
+  error: string | null
+  leaveServer: (id: string, serverName?: string) => Promise<void>
+}

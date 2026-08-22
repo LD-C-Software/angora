@@ -1,5 +1,6 @@
 import { DISCORD_CONFIG } from '../../../constants'
 import type { DiscordServer } from '../../../types'
+import { Avatar, Button, Card, LinkButton, StatusDot } from '../../ui'
 
 interface ServerCardProps {
   server: DiscordServer
@@ -12,55 +13,94 @@ export function ServerCard({ server, inviteUrl, onLeave }: ServerCardProps) {
   const fallbackUrl = inviteUrl || DISCORD_CONFIG.FALLBACK_INVITE_URL
 
   return (
-    <div className="card">
-      <div className="server-header">
-        <div className="server-icon">
-          {server.iconUrl ? (
-            <img src={server.iconUrl} alt={server.name} />
-          ) : (
-            server.name.substring(0, 2).toUpperCase()
-          )}
-        </div>
-        <div className="server-info">
-          <div className="server-name">{server.name}</div>
-          <div className="server-id">ID: {server.guildId}</div>
+    <Card>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-6)',
+          marginBottom: 'var(--space-6)',
+        }}
+      >
+        <Avatar name={server.name} imageUrl={server.iconUrl} size="lg" />
+        <div>
+          <div
+            style={{
+              fontSize: 'var(--font-size-lg)',
+              fontWeight: 'var(--font-weight-semibold)',
+              color: 'var(--color-navy)',
+            }}
+          >
+            {server.name}
+          </div>
+          <div
+            style={{
+              fontSize: 'var(--font-size-xs)',
+              color: 'var(--color-text-muted)',
+              fontFamily: 'var(--font-mono)',
+            }}
+          >
+            ID: {server.guildId}
+          </div>
         </div>
       </div>
 
       <div
         style={{
-          fontSize: '0.85rem',
-          color: 'var(--text-secondary)',
-          marginBottom: '0.5rem',
+          fontSize: 'var(--font-size-sm)',
+          color: 'var(--color-text-secondary)',
+          marginBottom: 'var(--space-3)',
         }}
       >
-        👥 Members: <strong>{server.memberCount}</strong>
+        Members: <strong>{server.memberCount}</strong>
       </div>
 
-      <div className="server-meta">
-        <span className={`status-badge ${isConnected ? 'active' : 'inactive'}`}>
-          <span className="status-dot"></span>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingTop: 'var(--space-6)',
+          borderTop: '0.0625rem solid var(--color-border-subtle)',
+          marginTop: 'auto',
+        }}
+      >
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 'var(--space-2)',
+            fontSize: 'var(--font-size-xs)',
+            fontWeight: 'var(--font-weight-semibold)',
+            color: isConnected
+              ? 'var(--color-success-text)'
+              : 'var(--color-warning-text)',
+          }}
+        >
+          <StatusDot status={isConnected ? 'solved' : 'pending'} />
           {isConnected ? 'Bot Connected' : 'Bot Left'}
         </span>
 
         {isConnected ? (
-          <button
-            className="btn btn-danger"
+          <Button
+            variant="danger"
+            size="sm"
             onClick={() => onLeave(server.id, server.name)}
           >
             Remove
-          </button>
+          </Button>
         ) : (
-          <a
+          <LinkButton
             href={fallbackUrl}
             target="_blank"
             rel="noreferrer"
-            className="btn btn-primary"
+            variant="primary"
+            size="sm"
           >
-            🔄 Reconnect
-          </a>
+            Reconnect
+          </LinkButton>
         )}
       </div>
-    </div>
+    </Card>
   )
 }

@@ -1,109 +1,70 @@
-import { useState } from 'react'
-import { APP_ROUTES, DISCORD_CONFIG } from '../../constants'
-import type { DiscordServer, InviteData, DiscordManagerTab } from '../../types'
-import { ConnectedServersTab } from './tabs/ConnectedServersTab'
-import { SlashCommandsTab } from './tabs/SlashCommandsTab'
-import { BackendHealthTab } from './tabs/BackendHealthTab'
+import { NavLink, Outlet } from 'react-router'
+import { useDiscordServers } from '../../hooks/useDiscordServers'
+import { DISCORD_CONFIG } from '../../constants'
+import { ROUTES } from '../../routes'
+import { CountBadge, LinkButton } from '../ui'
+import tabButtonStyles from '../ui/TabButton.module.css'
 
-interface DiscordPageProps {
-  servers: DiscordServer[]
-  inviteData: InviteData | null
-  loading: boolean
-  error: string | null
-  onNavigate: (path: string) => void
-  onLeaveServer: (id: string, name: string) => void
+function tabClassName({ isActive }: { isActive: boolean }): string {
+  return `${tabButtonStyles.tabBtn}${isActive ? ` ${tabButtonStyles.active}` : ''}`
 }
 
-export function DiscordPage({
-  servers,
-  inviteData,
-  loading,
-  error,
-  onNavigate,
-  onLeaveServer,
-}: DiscordPageProps) {
-  const [activeTab, setActiveTab] = useState<DiscordManagerTab>('discord')
+export function DiscordPage() {
+  const { servers, inviteData, loading, error, leaveServer } =
+    useDiscordServers()
   const inviteUrl = inviteData?.inviteUrl || DISCORD_CONFIG.FALLBACK_INVITE_URL
 
   return (
-    <main>
-      {/* Breadcrumbs Navigation Bar */}
-      <div className="breadcrumb-bar">
-        <span
-          className="breadcrumb-item"
-          onClick={() => onNavigate(APP_ROUTES.HOME)}
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 'var(--space-6)',
+          marginBottom: 'var(--space-8)',
+        }}
+      >
+        <p style={{ color: 'var(--color-text-secondary)' }}>
+          Manage connected Discord servers, invite Angora Bot, and view slash
+          commands.
+        </p>
+        <LinkButton
+          href={inviteUrl}
+          target="_blank"
+          rel="noreferrer"
+          variant="primary"
         >
-          🏠 Overview
-        </span>
-        <span>/</span>
-        <span className="breadcrumb-active">
-          🎮 Discord Bot Manager (/discordbot)
-        </span>
+          Add Bot to Server (OAuth)
+        </LinkButton>
       </div>
 
-      {/* Action Bar */}
-      <div className="action-bar">
-        <div>
-          <h1 className="page-title">Discord Server Integration</h1>
-          <p className="page-subtitle">
-            Manage connected Discord servers, invite Angora Bot, and view slash
-            commands.
-          </p>
-        </div>
-        <div className="btn-group">
-          <button
-            className="btn btn-secondary"
-            onClick={() => onNavigate(APP_ROUTES.HOME)}
-          >
-            ← Back to Home
-          </button>
-          <a
-            href={inviteUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="btn btn-discord"
-          >
-            🤖 Add Bot to Server (OAuth)
-          </a>
-        </div>
-      </div>
-
-      {/* Discord Navigation Sub-tabs */}
-      <nav className="nav-tabs">
-        <button
-          className={`tab-btn ${activeTab === 'discord' ? 'active' : ''}`}
-          onClick={() => setActiveTab('discord')}
-        >
-          🎮 Connected Servers ({servers.length})
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'commands' ? 'active' : ''}`}
-          onClick={() => setActiveTab('commands')}
-        >
-          ⚡ Bot Slash Commands
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'health' ? 'active' : ''}`}
-          onClick={() => setActiveTab('health')}
-        >
-          💚 Backend Health
-        </button>
+      <nav
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 'var(--space-3)',
+          marginBottom: 'var(--space-8)',
+        }}
+      >
+        <NavLink to={ROUTES.DISCORD.SERVERS} className={tabClassName}>
+          {({ isActive }) => (
+            <>
+              Connected Servers{' '}
+              <CountBadge count={servers.length} active={isActive} />
+            </>
+          )}
+        </NavLink>
+        <NavLink to={ROUTES.DISCORD.COMMANDS} className={tabClassName}>
+          Slash Commands
+        </NavLink>
+        <NavLink to={ROUTES.DISCORD.HEALTH} className={tabClassName}>
+          Backend Health
+        </NavLink>
       </nav>
 
-      {/* Sub-tab views */}
-      {activeTab === 'discord' && (
-        <ConnectedServersTab
-          servers={servers}
-          inviteData={inviteData}
-          loading={loading}
-          error={error}
-          onLeaveServer={onLeaveServer}
-        />
-      )}
-
-      {activeTab === 'commands' && <SlashCommandsTab />}
-
-      {activeTab === 'health' && <BackendHealthTab inviteData={inviteData} />}
-    </main>
+      <Outlet context={{ servers, inviteData, loading, error, leaveServer }} />
+    </div>
   )
 }

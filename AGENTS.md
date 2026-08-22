@@ -132,6 +132,8 @@ A task is complete when:
 | PostgreSQL (server) | 18.x | `docker-compose.yml` uses `postgres:18-alpine`; volume mounts at `/var/lib/postgresql`, not `/var/lib/postgresql/data` |
 | Node.js | 24.x | Active LTS; used for frontend and bots |
 | React | 19.x | Latest stable |
+| react-router | 8.3.0 | Frontend routing. Install as `react-router`, not `react-router-dom` — as of v8 the DOM bindings (`BrowserRouter`, `NavLink`, etc.) live in the main `react-router` package itself; `react-router-dom` is a v7-frozen compatibility shim |
+| lucide-react | 1.31.0 | Frontend icon set; newest version clearing the 7-day age guardrail as of this pinning |
 | TypeScript | 7.x | Latest stable (Go-based compiler); dropped `baseUrl` and `moduleResolution: "node"` |
 | Vite | 8.x | Latest stable, for frontend |
 | Vitest | 4.x | Test runner for frontend + all 3 bots — see each module's README for current test coverage status |
