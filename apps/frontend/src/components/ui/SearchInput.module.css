@@ -6,7 +6,9 @@
   border: 0.0625rem solid var(--color-border);
   border-radius: var(--radius-chip);
   padding: var(--space-4) var(--space-5);
-  width: 18.75rem;
+  width: 100%;
+  max-width: 18.75rem;
+  min-width: 0;
   color: var(--color-text-faint);
 }
 

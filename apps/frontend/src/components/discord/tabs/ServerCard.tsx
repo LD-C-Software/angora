@@ -62,7 +62,7 @@ export function ServerCard({ server, inviteUrl, onLeave }: ServerCardProps) {
           alignItems: 'center',
           paddingTop: 'var(--space-6)',
           borderTop: '0.0625rem solid var(--color-border-subtle)',
-          marginTop: 'var(--space-6)',
+          marginTop: 'auto',
         }}
       >
         <span

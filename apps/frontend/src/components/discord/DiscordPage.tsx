@@ -19,6 +19,7 @@ export function DiscordPage() {
       <div
         style={{
           display: 'flex',
+          flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
           gap: 'var(--space-6)',
@@ -42,6 +43,7 @@ export function DiscordPage() {
       <nav
         style={{
           display: 'flex',
+          flexWrap: 'wrap',
           gap: 'var(--space-3)',
           marginBottom: 'var(--space-8)',
         }}

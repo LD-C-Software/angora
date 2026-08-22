@@ -61,8 +61,10 @@ export function ConnectedServersTab() {
         <div
           style={{
             display: 'flex',
+            flexWrap: 'wrap',
             justifyContent: 'space-between',
             alignItems: 'center',
+            gap: 'var(--space-3)',
             marginBottom: 'var(--space-7)',
             padding: 'var(--space-3) var(--space-5)',
             background: 'var(--color-surface)',
@@ -86,7 +88,8 @@ export function ConnectedServersTab() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(20rem, 1fr))',
+          gridTemplateColumns:
+            'repeat(auto-fill, minmax(min(20rem, 100%), 1fr))',
           gap: 'var(--space-8)',
         }}
       >

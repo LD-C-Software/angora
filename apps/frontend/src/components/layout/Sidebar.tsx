@@ -6,13 +6,14 @@ import styles from './Sidebar.module.css'
 export interface SidebarProps {
   mode?: 'main' | 'settings'
   counts?: Record<string, number>
+  open?: boolean
 }
 
-export function Sidebar({ mode = 'main', counts }: SidebarProps) {
+export function Sidebar({ mode = 'main', counts, open = false }: SidebarProps) {
   const sections = mode === 'settings' ? SETTINGS_NAV : MAIN_NAV
 
   return (
-    <aside className={styles.sb}>
+    <aside className={`${styles.sb}${open ? ` ${styles.open}` : ''}`}>
       <div className={styles.brand}>
         <span className={styles.brandMark}>A</span>
         <span className={styles.wordmark}>Angora</span>

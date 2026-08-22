@@ -31,6 +31,10 @@
 }
 .primary:hover {
   background: var(--color-accent-hover);
+  /* Explicit, not inherited: .btn/.primary render as <a> for LinkButton, and
+     the global `a:hover` color rule in index.css otherwise wins on
+     specificity here, converging text and background on the same blue. */
+  color: #fff;
 }
 
 .secondary {
@@ -40,6 +44,7 @@
 }
 .secondary:hover {
   background: var(--color-canvas);
+  color: var(--color-text-secondary);
 }
 
 .danger {
@@ -49,6 +54,7 @@
 }
 .danger:hover {
   background: var(--color-danger-bg);
+  color: var(--color-danger-text);
 }
 
 .btn:disabled {

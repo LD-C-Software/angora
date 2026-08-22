@@ -11,7 +11,7 @@ export function HomePage() {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(20rem, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(min(20rem, 100%), 1fr))',
         gap: 'var(--space-8)',
       }}
     >
@@ -45,7 +45,7 @@ export function HomePage() {
         <Link
           to={ROUTES.DISCORD.SERVERS}
           className={primaryLinkClass}
-          style={{ width: '100%' }}
+          style={{ width: '100%', marginTop: 'auto' }}
         >
           Open Discord Manager
         </Link>
@@ -78,7 +78,11 @@ export function HomePage() {
           Connect support agents with customer support channels, receive ticket
           updates, and automate workspace notifications.
         </p>
-        <Button variant="secondary" disabled style={{ width: '100%' }}>
+        <Button
+          variant="secondary"
+          disabled
+          style={{ width: '100%', marginTop: 'auto' }}
+        >
           Slack Engine Ready
         </Button>
       </Card>
@@ -110,7 +114,11 @@ export function HomePage() {
           Inbound IMAP/SMTP message listener for automatic ticket generation,
           response dispatching, and conversation logs.
         </p>
-        <Button variant="secondary" disabled style={{ width: '100%' }}>
+        <Button
+          variant="secondary"
+          disabled
+          style={{ width: '100%', marginTop: 'auto' }}
+        >
           Email Engine Ready
         </Button>
       </Card>
@@ -145,7 +153,7 @@ export function HomePage() {
         <Link
           to={ROUTES.DISCORD.SERVERS}
           className={secondaryLinkClass}
-          style={{ width: '100%' }}
+          style={{ width: '100%', marginTop: 'auto' }}
         >
           View Connected Records
         </Link>

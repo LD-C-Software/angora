@@ -1,4 +1,4 @@
-import { Bell, Settings } from 'lucide-react'
+import { Bell, Menu, Settings } from 'lucide-react'
 import { Link, useMatches, useNavigate } from 'react-router'
 import { Avatar } from '../ui/Avatar'
 import { IconButton } from '../ui/IconButton'
@@ -20,7 +20,11 @@ function isRouteHandle(handle: unknown): handle is RouteHandle {
   return typeof handle === 'object' && handle !== null
 }
 
-export function TopBar() {
+export interface TopBarProps {
+  onMenuClick?: () => void
+}
+
+export function TopBar({ onMenuClick }: TopBarProps) {
   const navigate = useNavigate()
   const matches = useMatches()
 
@@ -31,6 +35,13 @@ export function TopBar() {
 
   return (
     <div className={styles.top}>
+      <IconButton
+        icon={Menu}
+        label="Toggle navigation"
+        onClick={onMenuClick}
+        className={styles.menuButton}
+      />
+
       {handle?.crumbs ? (
         <h1>
           {handle.crumbs.map((crumb, i) => (
@@ -52,7 +63,9 @@ export function TopBar() {
         <h1>{handle?.title}</h1>
       )}
 
-      <SearchInput placeholder="Search tickets, contacts, messages…" />
+      <div className={styles.searchSlot}>
+        <SearchInput placeholder="Search tickets, contacts, messages…" />
+      </div>
 
       <div className={styles.actions}>
         <IconButton icon={Bell} label="Notifications" withDot />
