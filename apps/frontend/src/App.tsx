@@ -1,43 +1,57 @@
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  Navigate,
+  Route,
+  RouterProvider,
+} from 'react-router'
 import { ToastProvider } from './context/ToastProvider'
-import { useNavigation } from './hooks/useNavigation'
-import { useDiscordServers } from './hooks/useDiscordServers'
-import { Header } from './components/layout/Header'
 import { ToastContainer } from './components/layout/ToastContainer'
+import { AppShell } from './components/layout/AppShell'
 import { HomePage } from './components/home/HomePage'
 import { DiscordPage } from './components/discord/DiscordPage'
-import { APP_ROUTES } from './constants'
+import { ConnectedServersTab } from './components/discord/tabs/ConnectedServersTab'
+import { SlashCommandsTab } from './components/discord/tabs/SlashCommandsTab'
+import { BackendHealthTab } from './components/discord/tabs/BackendHealthTab'
+import { SettingsPage } from './components/settings/SettingsPage'
+import { NotFoundPage } from './components/NotFoundPage'
+import { ROUTES } from './routes'
 
-function AppContent() {
-  const { currentPath, navigate } = useNavigation()
-  const { servers, inviteData, loading, error, leaveServer } =
-    useDiscordServers()
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route element={<AppShell />}>
+      <Route index element={<HomePage />} handle={{ title: 'Overview' }} />
 
-  return (
-    <div className="app-container">
-      <Header currentPath={currentPath} onNavigate={navigate} />
-
-      {currentPath === APP_ROUTES.HOME && <HomePage onNavigate={navigate} />}
-
-      {currentPath === APP_ROUTES.DISCORD_BOT && (
-        <DiscordPage
-          servers={servers}
-          inviteData={inviteData}
-          loading={loading}
-          error={error}
-          onNavigate={navigate}
-          onLeaveServer={leaveServer}
+      <Route
+        path="discordbot"
+        element={<DiscordPage />}
+        handle={{ title: 'Discord Bot' }}
+      >
+        <Route
+          index
+          element={<Navigate to={ROUTES.DISCORD.SERVERS} replace />}
         />
-      )}
+        <Route path="servers" element={<ConnectedServersTab />} />
+        <Route path="commands" element={<SlashCommandsTab />} />
+        <Route path="health" element={<BackendHealthTab />} />
+      </Route>
 
-      <ToastContainer />
-    </div>
-  )
-}
+      <Route
+        path="settings"
+        element={<SettingsPage />}
+        handle={{ title: 'Settings' }}
+      />
+
+      <Route path="*" element={<NotFoundPage />} />
+    </Route>,
+  ),
+)
 
 export function App() {
   return (
     <ToastProvider>
-      <AppContent />
+      <RouterProvider router={router} />
+      <ToastContainer />
     </ToastProvider>
   )
 }

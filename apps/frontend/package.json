@@ -1,6 +1,6 @@
 {
   "name": "angora-frontend",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Angora Frontend",
   "type": "module",
   "scripts": {
@@ -12,8 +12,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "lucide-react": "1.31.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
+    "react-router": "8.3.0",
     "typescript": "catalog:"
   },
   "devDependencies": {

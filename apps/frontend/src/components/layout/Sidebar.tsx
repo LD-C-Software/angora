@@ -1,0 +1,61 @@
+import { NavLink } from 'react-router'
+import { Avatar } from '../ui/Avatar'
+import { MAIN_NAV, SETTINGS_NAV } from './navConfig'
+import styles from './Sidebar.module.css'
+
+export interface SidebarProps {
+  mode?: 'main' | 'settings'
+  counts?: Record<string, number>
+}
+
+export function Sidebar({ mode = 'main', counts }: SidebarProps) {
+  const sections = mode === 'settings' ? SETTINGS_NAV : MAIN_NAV
+
+  return (
+    <aside className={styles.sb}>
+      <div className={styles.brand}>
+        <span className={styles.brandMark}>A</span>
+        <span className={styles.wordmark}>Angora</span>
+        <span className={styles.tag}>
+          {mode === 'settings' ? 'ADMIN' : 'CRM'}
+        </span>
+      </div>
+
+      {sections.map((section) => (
+        <div key={section.section}>
+          <div className={styles.section}>{section.section}</div>
+          {section.items.map((item) => {
+            const count = item.countKey ? counts?.[item.countKey] : undefined
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.end}
+                className={({ isActive }) =>
+                  `${styles.nav}${isActive ? ` ${styles.active}` : ''}`
+                }
+              >
+                <item.icon size={18} />
+                {item.label}
+                {count !== undefined && (
+                  <span className={styles.count}>{count}</span>
+                )}
+              </NavLink>
+            )
+          })}
+        </div>
+      ))}
+
+      <div className={styles.version}>
+        v{__APP_VERSION__} · {__COMMIT_HASH__} · self-hosted
+      </div>
+      <div className={styles.user}>
+        <Avatar name="Angora Admin" size="md" />
+        <div>
+          <div className={styles.userName}>Angora Admin</div>
+          <div className={styles.userRole}>Administrator</div>
+        </div>
+      </div>
+    </aside>
+  )
+}

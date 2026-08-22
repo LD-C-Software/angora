@@ -1,8 +1,3 @@
-export const APP_ROUTES = {
-  HOME: '/',
-  DISCORD_BOT: '/discordbot',
-} as const
-
 export const API_ENDPOINTS = {
   HEALTH: '/api/health',
   DISCORD_SERVERS: '/api/discord/servers',
